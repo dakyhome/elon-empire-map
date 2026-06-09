@@ -423,7 +423,7 @@ function openPanel(n){
   if(n.type==='hub') strip=si('Net worth',n.valuation)+si('Control gap',n.metric)+si('As of',ASOF);
   else if(n.type==='jv') strip=si('Type','Joint venture')+si('Owners','Tesla + SpaceX')+si('Tradeable','No, private');
   else if(n.status==='private') strip=si('Valuation',n.valuation)+si('Last round',n.metric)+si('Tradeable','No, private');
-  else if(n.type==='company') strip=si('Price',LIVE['price-'+n.id]||'Lists ~Jun 12')+si('Market cap',LIVE['cap2-'+n.id]||n.valuation)+(LIVE['price-'+n.id]&&CLOSEDATE?si('Closing',CLOSEDATE):'')+si('Elon stake',n.owns_pct+'% / '+n.votes_pct+'% votes');
+  else if(n.type==='company') strip=si('Price',LIVE['price-'+n.id]||'Lists ~Jun 12')+si('Market cap',LIVE['cap2-'+n.id]||n.valuation)+(LIVE['price-'+n.id]&&CLOSEDATE?si('Closing',CLOSEDATE):'')+si('Elon stake',n.owns_pct+'% Stake / '+n.votes_pct+'% Votes');
   else if(n.type==='segment') strip=si('Part of',pName)+si('Op. income/loss',n.profit);
   else strip=si('Part of',pName)+si('Key fact',n.metric);
   document.getElementById('pStrip').innerHTML=strip;
@@ -474,7 +474,7 @@ async function liveUpdate(){
     if(n.ticker&&n.status==='public'&&n.shares_b){
       const px=T[n.ticker];
       if(px&&isFinite(px)){const cap=px*(+n.shares_b);
-        LIVE['price-'+n.id]='$'+(+px).toFixed(0);LIVE['cap2-'+n.id]=fmtT(cap);
+        LIVE['price-'+n.id]='$'+(+px).toFixed(2);LIVE['cap2-'+n.id]=fmtT(cap);
         const b=document.getElementById('live-'+n.id);if(b)b.style.display='block';}
     }
   }
