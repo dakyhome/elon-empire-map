@@ -1,8 +1,9 @@
 {
-  "asof": "2026-06-09",
-  "networth": "$834B",
+  "checked": "2026-06-09",
+  "networth": "$814B",
   "tickers": {
-    "TSLA": 433,
+    "TSLA": 408.95,
     "SPCX": null
-  }
+  },
+  "close_date": "2026-06-08"
 }

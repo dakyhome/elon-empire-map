@@ -186,7 +186,7 @@
     <div style="margin-top:7px;color:var(--ink-faint)">Drag to move · scroll to zoom. Hover a line for ownership, click a bubble for the detail.</div>
   </div>
 </div>
-<div id="updated">Stock prices: daily close · as of <span id="asof">Jun 2026</span></div>
+<div id="updated">Last checked on <span id="lastchecked">Jun 2026</span></div>
 
 <!-- ===== FALLBACK DATA: used only when data.csv can't be loaded (e.g. opening the file directly).
      When hosted, data.csv is the source of truth. Keep this copy in sync if you can. ===== -->
@@ -423,7 +423,7 @@ function openPanel(n){
   if(n.type==='hub') strip=si('Net worth',n.valuation)+si('Control gap',n.metric)+si('As of',ASOF);
   else if(n.type==='jv') strip=si('Type','Joint venture')+si('Owners','Tesla + SpaceX')+si('Tradeable','No, private');
   else if(n.status==='private') strip=si('Valuation',n.valuation)+si('Last round',n.metric)+si('Tradeable','No, private');
-  else if(n.type==='company') strip=si('Price',LIVE['price-'+n.id]||'Lists ~Jun 12')+si('Market cap',LIVE['cap2-'+n.id]||n.valuation)+si('Elon stake',n.owns_pct+'% / '+n.votes_pct+'% votes');
+  else if(n.type==='company') strip=si('Price',LIVE['price-'+n.id]||'Lists ~Jun 12')+si('Market cap',LIVE['cap2-'+n.id]||n.valuation)+(LIVE['price-'+n.id]&&CLOSEDATE?si('Closing',CLOSEDATE):'')+si('Elon stake',n.owns_pct+'% / '+n.votes_pct+'% votes');
   else if(n.type==='segment') strip=si('Part of',pName)+si('Op. income/loss',n.profit);
   else strip=si('Part of',pName)+si('Key fact',n.metric);
   document.getElementById('pStrip').innerHTML=strip;
@@ -453,14 +453,21 @@ const LIVE={};
 function fmtT(b){return b>=1000?'$'+(b/1000).toFixed(2)+'T':'$'+b.toFixed(0)+'B';}
 function fmtDate(iso){const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const p=(iso||'').split('-');if(p.length!==3)return iso||'';return m[+p[1]-1]+' '+(+p[2])+', '+p[0];}
+// Day-first form for the per-bubble closing label, e.g. "8 Jun 2026".
+function fmtDateDMY(iso){const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const p=(iso||'').split('-');if(p.length!==3)return iso||'';return (+p[2])+' '+m[+p[1]-1]+' '+p[0];}
 let ASOF='Jun 2026';
+let CLOSEDATE='';
 // Reads prices.json (kept fresh daily by the GitHub Action). Falls back to the
 // static valuation in data.csv when the file is unavailable (e.g. local file://).
 async function liveUpdate(){
   let data=null;
   try{const r=await fetch('prices.json',{cache:'no-store'});if(r.ok)data=await r.json();}catch(e){}
   if(!data)return;
-  if(data.asof){ASOF=fmtDate(data.asof);const a=document.getElementById('asof');if(a)a.textContent=ASOF;}
+  const stamp=data.checked||data.asof;
+  if(stamp){ASOF=fmtDate(stamp);const a=document.getElementById('lastchecked');if(a)a.textContent=ASOF;}
+  const cdate=data.close_date||data.asof;
+  if(cdate)CLOSEDATE=fmtDateDMY(cdate);
   if(data.networth&&BYID['elon']){BYID['elon'].valuation=data.networth;updateHubNet();}
   const T=data.tickers||{};
   for(const n of NODES){
