@@ -318,7 +318,6 @@ function render(rows){
     const lbl=document.createElement('div');lbl.className='lbl';
     if(n.type==='hub'){lbl.innerHTML='ELON<small id="hubNet"></small>';}else lbl.textContent=n.name;
     bub.appendChild(lbl);
-    if(n.ticker&&n.status==='public'&&n.shares_b){const lv=document.createElement('div');lv.className='badge-live';lv.id='live-'+n.id;lv.textContent='CLOSE';lv.style.display='none';bub.appendChild(lv);}
     bub.addEventListener('mousemove',e=>showNodeTip(e,n));
     bub.addEventListener('mouseleave',hideTip);
     bub.addEventListener('click',()=>openPanel(n));
