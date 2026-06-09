@@ -1,0 +1,46 @@
+name: Update prices
+
+# This workflow OWNS prices.json. It is the only thing that should write it.
+# Never re-upload a local prices.json over the committed one.
+
+on:
+  schedule:
+    # 22:00 UTC on weekdays = ~6pm New York time, safely after the US close.
+    - cron: "0 22 * * 1-5"
+  workflow_dispatch: {}   # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write          # needed to commit prices.json back to the repo
+
+concurrency:
+  group: update-prices
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch prices and rewrite prices.json
+        env:
+          ALPHAVANTAGE_KEY: ${{ secrets.ALPHAVANTAGE_KEY }}
+        run: python scripts/update_prices.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add prices.json
+          if git diff --staged --quiet; then
+            echo "No change in prices.json."
+          else
+            git commit -m "Update prices.json ($(date -u +%Y-%m-%d))"
+            git push
+          fi
