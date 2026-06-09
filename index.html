@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>The Elon Empire: Who Owns What and Who Controls It</title>
+<style>
+  :root{
+    --ink:#f2f6ff; --ink-dim:#9fb1c8; --ink-faint:#6a7c93;
+    --red:#ff1c1c;        /* channel accent */
+    --tesla:#e82127;      /* Tesla brand red */
+    --spacex:#2f9bff;     /* SpaceX blue */
+    --stroke:#23344c; --panel:#0a1320;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;color:var(--ink);
+    font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:
+      radial-gradient(1100px 720px at 50% 50%, #14233a 0%, #0a1422 42%, #050912 72%, #03060c 100%);}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.55;background-image:
+    radial-gradient(1.5px 1.5px at 12% 22%, #fff8 50%, transparent),
+    radial-gradient(1px 1px at 78% 18%, #fff7 50%, transparent),
+    radial-gradient(1px 1px at 64% 72%, #fff6 50%, transparent),
+    radial-gradient(1.5px 1.5px at 30% 80%, #fff7 50%, transparent),
+    radial-gradient(1px 1px at 88% 60%, #fff6 50%, transparent),
+    radial-gradient(1px 1px at 45% 35%, #fff5 50%, transparent),
+    radial-gradient(1px 1px at 22% 58%, #fff5 50%, transparent);
+    background-repeat:no-repeat}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(420px 420px at 50% 52%, #ff1c1c14, transparent 70%)}
+
+  header.top{position:fixed;top:0;left:0;right:0;z-index:30;padding:15px 22px;
+    display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+    background:linear-gradient(#03060ccc,#03060c00);pointer-events:none}
+  .title h1{margin:0;font-size:21px;letter-spacing:.16em;font-weight:800}
+  .title h1 b{color:var(--red)}
+  .title p{margin:3px 0 0;font-size:12.5px;color:var(--ink-dim);letter-spacing:.03em}
+  .stat{pointer-events:auto;text-align:right;font-size:12px;color:var(--ink-dim);
+    background:#0b1726bb;border:1px solid var(--stroke);border-radius:10px;padding:8px 13px;max-width:320px}
+  .stat b{color:#fff;font-size:13px}
+
+  #viewport{position:fixed;inset:0;z-index:5;transform-origin:0 0;cursor:grab;touch-action:none}
+  #viewport.grabbing{cursor:grabbing}
+  #stage{position:absolute;inset:0;pointer-events:none}
+  svg#links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  svg#links path.hit{pointer-events:stroke}
+
+  .node{position:absolute;width:0;height:0;will-change:transform}
+  .bubble{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:auto;
+    border-radius:50%;display:grid;place-items:center;text-align:center;cursor:pointer;
+    border:1.5px solid #ffffff26;line-height:1.04;font-weight:700;
+    transition:transform .15s ease, box-shadow .2s ease, filter .2s ease}
+  .bubble:hover{transform:translate(-50%,-50%) scale(1.08);z-index:9;filter:brightness(1.08)}
+  .bubble .lbl{padding:5px;pointer-events:none;overflow:hidden}
+
+  .b-spacex{background:radial-gradient(circle at 33% 27%, #d7ecff, var(--spacex) 50%, #0b54c4);
+    box-shadow:0 0 24px #2f9bff66, 0 0 60px #2f9bff2e}
+  .b-spacex .lbl{color:#fff;text-shadow:0 1px 3px #00284e99}
+  .b-tesla{background:radial-gradient(circle at 33% 27%, #ffd4d5, var(--tesla) 50%, #8f1116);
+    box-shadow:0 0 24px #e8212766, 0 0 60px #e821272e}
+  .b-tesla .lbl{color:#fff;text-shadow:0 1px 3px #3a060899}
+  .b-priv{background:radial-gradient(circle at 33% 27%, #c4cedb, #6b7886 52%, #39434f);
+    box-shadow:0 0 14px #6b788644;border-color:#ffffff1c}
+  .b-priv .lbl{color:#eef2f7;text-shadow:0 1px 2px #1a222c99}
+  .b-jv{background:radial-gradient(circle at 33% 27%, #ffe7a8, #f5b301 52%, #b07d00);
+    box-shadow:0 0 22px #f5b30166, 0 0 50px #f5b3012e;border-color:#ffffff2e}
+  .b-jv .lbl{color:#2a2102;text-shadow:none;font-weight:800}
+  .b-hub{background:radial-gradient(circle at 35% 26%, #ffffff, #eaf1fb 44%, #aebdce);
+    border:2px solid #ffffff;box-shadow:0 0 34px #ffffff55, 0 0 70px #ff1c1c33, 0 0 120px #ff1c1c1c}
+  .b-hub .lbl{color:#0a1320;text-shadow:none;font-weight:800}
+  .b-hub .lbl small{display:block;font-weight:700;font-size:10px;color:#7a1414;margin-top:2px;letter-spacing:.02em}
+  .deep{filter:saturate(.92) brightness(.97)}
+
+  .badge-live{position:absolute;top:-6px;right:-6px;background:#06101d;border:1px solid var(--spacex);
+    color:var(--spacex);font-size:9px;font-weight:800;letter-spacing:.06em;border-radius:8px;padding:2px 5px;
+    box-shadow:0 0 10px #2f9bff66;animation:pulse 2s infinite}
+  .b-tesla .badge-live{border-color:#ff7a7d;color:#ff9a9c;box-shadow:0 0 10px #e8212766}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  #tip{position:fixed;z-index:40;max-width:265px;background:#0a1422f5;border:1px solid var(--stroke);
+    border-radius:10px;padding:10px 12px;font-size:12.5px;pointer-events:none;opacity:0;transition:opacity .12s;
+    box-shadow:0 12px 34px #000b}
+  #tip h4{margin:0 0 3px;font-size:13.5px}
+  #tip .d{color:var(--ink-dim);margin:0 0 5px;line-height:1.35}
+  #tip .v{font-weight:700;font-size:12px}
+  #tip .own{color:#ffcf6b;font-weight:700}
+
+  #panel{position:fixed;top:0;right:0;height:100%;width:382px;max-width:92vw;z-index:50;
+    background:linear-gradient(#0a1626,#070f1c);border-left:1px solid var(--stroke);
+    transform:translateX(102%);transition:transform .28s cubic-bezier(.4,0,.2,1);
+    display:flex;flex-direction:column;box-shadow:-22px 0 64px #000a}
+  #panel.open{transform:none}
+  #panel .ph{padding:20px 22px 14px;border-bottom:1px solid var(--stroke);position:relative}
+  #panel .pill{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.08em;padding:3px 9px;border-radius:20px;margin-bottom:10px}
+  .pill.spacex{background:#0c2d4d;color:#7cc0ff;border:1px solid #2f9bff66}
+  .pill.tesla{background:#3a0d10;color:#ff9a9c;border:1px solid #e8212766}
+  .pill.priv{background:#222d3a;color:#aebccd;border:1px solid #ffffff22}
+  .pill.jv{background:#3a2e08;color:#ffcf6b;border:1px solid #f5b30166}
+  .pill.hub{background:#3a0a0a;color:#ff8a8a;border:1px solid #ff1c1c55}
+  #panel h2{margin:0;font-size:22px;font-weight:800;line-height:1.12}
+  #panel .pv{margin:6px 0 0;font-weight:700;font-size:14px}
+  #panel .pdesc{margin:8px 0 0;color:var(--ink-dim);font-size:13px;line-height:1.45}
+  .strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+  .stat-i{background:#0e1a2c;border:1px solid var(--stroke);border-radius:8px;padding:6px 11px;flex:1 1 auto;min-width:90px}
+  .stat-i .k{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#9fb1c8}
+  .stat-i .val{font-size:14px;font-weight:700;margin-top:3px;color:#fff}
+  #panel .body{padding:18px 22px;overflow:auto}
+  .sect{margin-bottom:20px}
+  .sect h3{margin:0 0 11px;font-size:12.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#b6c4d6}
+  .facts{list-style:none;margin:0;padding:0}
+  .facts li{position:relative;padding:6px 0 6px 18px;font-size:13.5px;line-height:1.42;border-bottom:1px dashed #ffffff12}
+  .facts li:before{content:"";position:absolute;left:2px;top:12px;width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
+  .facts li:last-child{border-bottom:0}
+  .take{background:#0e1a2c;border:1px solid var(--stroke);border-left:3px solid var(--red);border-radius:8px;
+    padding:12px 14px;font-size:13.5px;line-height:1.5;color:#dde8f6;font-style:italic}
+  .take:before{content:"\201C";color:var(--red);font-size:26px;line-height:0;vertical-align:-6px;margin-right:2px;font-style:normal}
+  a.vid{display:flex;align-items:center;gap:10px;margin-top:14px;text-decoration:none;justify-content:center;
+    background:linear-gradient(90deg,var(--red),#ff5a3c);color:#fff;font-weight:800;font-size:14px;padding:12px 14px;border-radius:10px}
+  a.vid.disabled{background:#172333;color:#5d7390;cursor:not-allowed;border:1px dashed #2f465c}
+  #panel .src{font-size:11px;color:var(--ink-faint);word-break:break-all;margin-top:14px}
+  #panel .src a{color:var(--ink-faint)}
+  #close{position:absolute;top:14px;right:14px;background:#15273c;border:1px solid var(--stroke);color:var(--ink);
+    width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px;line-height:1}
+  .conf{font-size:10.5px;color:var(--ink-faint);margin-top:8px}
+
+  #legend{position:fixed;left:16px;bottom:14px;z-index:30;font-size:11.5px;color:var(--ink-dim);
+    background:#0a1626e6;border:1px solid var(--stroke);border-radius:10px;padding:9px 12px;max-width:255px;backdrop-filter:blur(3px)}
+  #legend b{color:#fff}
+  #legToggle{background:none;border:0;color:#fff;font:inherit;font-weight:700;font-size:12px;cursor:pointer;
+    display:flex;align-items:center;gap:7px;padding:0}
+  #legToggle .arrow{transition:transform .2s;color:var(--red)}
+  #legend.collapsed .legbody{display:none}
+  #legend.collapsed #legToggle .arrow{transform:rotate(-90deg)}
+  .legbody{margin-top:8px}
+  .lg{display:flex;align-items:center;gap:8px;margin:5px 0}
+  .dot{width:13px;height:13px;border-radius:50%;flex:none}
+  .dot.spacex{background:radial-gradient(circle at 30% 30%,#d7ecff,var(--spacex),#0b54c4)}
+  .dot.tesla{background:radial-gradient(circle at 30% 30%,#ffd4d5,var(--tesla),#8f1116)}
+  .dot.priv{background:radial-gradient(circle at 30% 30%,#c4cedb,#6b7886,#39434f)}
+  .lgline{width:22px;height:0;flex:none;border-top:5px solid var(--red);border-radius:3px}
+  .lgline.thin{border-top-width:1.5px;border-top-color:#6a7c93}
+  #updated{position:fixed;right:14px;bottom:12px;z-index:30;font-size:10.5px;color:var(--ink-faint)}
+  @media (max-width:640px){ .stat{display:none} #legend{display:none} .title h1{font-size:16px} }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="title">
+    <h1>THE <b>ELON</b> EMPIRE</h1>
+    <p>Who owns what. And who really controls it.</p>
+  </div>
+  <div class="stat"><b>One man. Four companies.</b><br>You can actually buy two of them.</div>
+</header>
+
+<div id="viewport">
+  <svg id="links"></svg>
+  <div id="stage"></div>
+</div>
+<div id="tip"></div>
+
+<aside id="panel" aria-hidden="true">
+  <div class="ph">
+    <button id="close" aria-label="Close">×</button>
+    <span class="pill" id="pPill"></span>
+    <h2 id="pName"></h2>
+    <p class="pdesc" id="pDesc"></p>
+    <div class="strip" id="pStrip"></div>
+  </div>
+  <div class="body">
+    <div class="sect"><h3 id="factsHead">The facts</h3><ul class="facts" id="pFacts"></ul></div>
+    <div class="sect"><h3>Daniel's Read</h3><div class="take" id="pTake"></div>
+      <a class="vid" id="pVid" href="#" target="_blank" rel="noopener">▶ Watch my breakdown</a></div>
+    <div class="src" id="pSrc"></div>
+  </div>
+</aside>
+
+<div id="legend" class="collapsed">
+  <button id="legToggle"><span class="arrow">▾</span> How to read this map</button>
+  <div class="legbody">
+    <div class="lg"><span class="dot spacex"></span> Blue = SpaceX &amp; its parts (public)</div>
+    <div class="lg"><span class="dot tesla"></span> Red = Tesla &amp; its parts (public)</div>
+    <div class="lg"><span class="dot priv"></span> Grey = private. You can't buy it.</div>
+    <div class="lg"><span class="lgline"></span> Thick line = tight voting control</div>
+    <div class="lg"><span class="lgline thin"></span> Bubble size = relative value</div>
+    <div style="margin-top:7px;color:var(--ink-faint)">Drag to move · scroll to zoom. Hover a line for ownership, click a bubble for the detail.</div>
+  </div>
+</div>
+<div id="updated">Stock prices: daily close · as of <span id="asof">Jun 2026</span></div>
+
+<!-- ===== FALLBACK DATA: used only when data.csv can't be loaded (e.g. opening the file directly).
+     When hosted, data.csv is the source of truth. Keep this copy in sync if you can. ===== -->
+<script id="fallback-csv" type="text/csv">id,parent,level,type,name,status,ticker,shares_b,value_b,valuation,owns_pct,votes_pct,desc,rev_a,rev_a_yoy,rev_q,rev_q_period,rev_q_yoy,profit,metric,facts,take,video_url,source_url,checked
+elon,,0,hub,Elon Musk,,,,,$834B,,,"Controls the empire through votes, not ownership",,,,,,,Owns 42% of SpaceX but controls 82.4% of the votes,"Tesla stake worth ~$355B in stock, plus options | SpaceX ~42% stake set to be worth ~$866.5B at the $135 IPO price | Net worth set to pass $1 trillion once SpaceX lists on June 12, 2026",The gap is the whole story. He owns far less than he controls. In SpaceX he holds 42% of the money but 82.4% of the votes. Watch whether his voting control keeps climbing even as outside shareholders pour money in.,#,https://www.cnbc.com/2026/06/03/elon-musks-net-worth-poised-to-sail-past-1-trillion-in-spacex-ipo.html,2026-06-09
+spacex,elon,1,company,SpaceX,public,SPCX,,1750,$1.77T (IPO target),42,82.4,"Rockets, Starlink internet, and now AI",$18.7B (2025),~+43% YoY,,,,,,"Lists Jun 12 2026 on Nasdaq as SPCX at $135 a share | Three segments: Space, Connectivity, AI | Absorbed xAI (Grok) and X in the Feb 2026 merger | Net loss of $4.94B in 2025, and a $4.28B loss in Q1 2026 | Total losses since 2002 top $41.3B","This is the cleanest version of the whole map's theme. After the IPO, outside shareholders supply the cash and Elon keeps near-total control. Starlink funds everything else. Watch whether the AI segment's losses ever force that to change.",https://youtu.be/rlbt7-nhYKg,https://www.thevccorner.com/p/spacex-spcx-ipo-s1-teardown-valuation-2026,2026-06-09
+tesla,elon,1,company,Tesla,public,TSLA,3.21,1390,$1.39T,15,15,"Electric cars, batteries, self-driving and robots",$99.8B (2025),+2% YoY,$22.4B,Q1 2026,+16% YoY,,,"~1.64M vehicles delivered in 2025 | Q1 2026 auto gross margin was 19.2%, up from 16.3% a year earlier | Bought $2B of SpaceX equity in Q1 2026 | Raised 2026 capex guidance to over $25B, and ended Model S and X production in May 2026 | One share, one vote: no super-voting shares","Tesla is the one company where Elon's control roughly equals his ownership, about 15%, with no super-voting shares. That makes it the most exposed to a shareholder revolt. The number I watch is energy.",https://youtu.be/Qbe1jMIyCc8,https://www.sec.gov/Archives/edgar/data/0001318605/000162828026003837/exhibit991.htm,2026-06-09
+boring,elon,1,company,The Boring Company,private,,,7,$7B,,,Digs tunnels for underground transit (the Loop),,,,,,,"Last round: Series C, Apr 2022",Runs the Las Vegas Loop tunnel system | ~$905M raised in total | Valuation slipped from $8.6B in 2023,"The smallest, quietest bet, and the valuation has slipped rather than grown. It matters mostly as contrast: a private company most retail investors will never get access to.",#,https://sacra.com/c/the-boring-company/
+neuralink,elon,1,company,Neuralink,private,,,9,$9B,,,Brain implants that let people control devices by thought,,,,,,,"Last round: Series E, Jun 2025",N1 implant placed in multiple human patients | ~$1.3B raised since 2016 | No revenue yet,"The highest-risk, longest-horizon company: real medical progress, no revenue. Locked away from public investors for now. Watch for any pre-IPO chatter.",#,https://techcrunch.com/2025/05/28/elon-musks-neuralink-raises-600m-at-9b-valuation/
+space,spacex,2,segment,Space,public,,,4.1,,,,"Launch services and spacecraft, the rocket business",$4.1B (2025),,,,,-$657M operating loss (2025),,"Active vehicles: Falcon 9, Falcon Heavy, Dragon | The loss is driven by Starship R&D | Starship still in test flights",The original business now runs at a loss on purpose. Every spare dollar goes into Starship. The question is when Starship starts carrying paying payloads.,#,https://www.morningstar.com/stocks/6-charts-spacexs-s-1-financials
+connectivity,spacex,2,segment,Connectivity,public,,,11.4,,,,"Starlink internet, plus Starshield for governments",$11.4B (2025),+50% YoY,$3.26B,Q1 2026,,$4.4B operating income (2025),,"Almost all of this revenue is Starlink | Starshield is the government and defense layer, not broken out separately | About 63% EBITDA margin in 2025 | The cash engine that funds Starship and the AI buildout","This is the engine. Starlink is the only segment throwing off real cash, and it bankrolls the rest of SpaceX. If you remember one number from this map, make it this one.",#,https://www.morningstar.com/stocks/6-charts-spacexs-s-1-financials,2026-06-09
+spacexai,spacex,2,segment,AI,public,,,3.2,,,,Grok AI and the X social network,$3.2B (2025),,,,,-$6.4B operating loss (2025),,"Formed by folding xAI (Grok) and X into SpaceX in Feb 2026 | Runs the Colossus data centers in Memphis; Colossus 2 came online in Jan 2026 with 555,000 Nvidia GPUs and 1 gigawatt of power | Leases compute to Anthropic at $1.25B a month and Google at about $920M a month, roughly $75B combined | Both compute deals can be cancelled on 90 days notice after end of 2026",The newest and most expensive piece. Watch whether Starlink's cash can keep absorbing these losses.,https://youtu.be/d-oTyUVgj44,https://www.thevccorner.com/p/spacex-spcx-ipo-s1-teardown-valuation-2026,2026-06-09
+falcon9,space,3,product,Falcon 9,public,,,2.5,,,,The reusable rocket that funds the space business,,,,,,,"165 launches in 2025, a record","123 of the 165 launches were SpaceX's own Starlink missions | Reusability is the edge, with some boosters past 30 flights | List price is about $74 million per launch | 2025 was the peak; flights ease off as SpaceX shifts to Starship",The reliable cash-and-reputation engine of the Space segment.,https://youtu.be/jAqU-nKr43Q,https://www.morningstar.com/stocks/6-charts-spacexs-s-1-financials,2026-06-09
+starship,space,3,product,Starship,public,,,1.6,,,,The giant next-generation rocket aimed at Mars,,,,,,,"Flight 12 flew May 22, 2026; Flight 13, the first orbital attempt, is Q3 2026 at the earliest","Version 3 carries 100 tons to orbit, versus about 23 for Falcon 9 | Flight 12 lost one engine but held its trajectory | Flight 13 is the first orbital attempt, pending an FAA review | Built to launch the new Starlink V3 satellites in the second half of 2026","The biggest bet inside SpaceX. Watch Flight 13 for the first orbit, and the second half of 2026 for the first commercial payloads.",https://youtu.be/xa3OOsEHxWE,https://www.morningstar.com/stocks/6-charts-spacexs-s-1-financials,2026-06-09
+starlink,connectivity,3,product,Starlink,public,,,10,,,,Consumer and business satellite internet,,,,,,,"10.3M subscribers as of Q1 2026, up 105% YoY","Revenue per user fell from $99 a month in 2023 to $66 in Q1 2026 | Runs about 9,600 satellites, roughly 65% of all active satellites | Beams direct to phones in 30 countries, with 7.4M devices connected | Tested a $39 a month floor in March 2026, then raised prices $5 to $10 in May 2026 | Churn rate is still not disclosed",Subscribers keep climbing while the revenue per user keeps falling. Watch which one sets the trajectory.,https://youtu.be/63GLZINsYjE,https://www.morningstar.com/stocks/6-charts-spacexs-s-1-financials,2026-06-09
+starshield,connectivity,3,product,Starshield,public,,,1.4,,,,A secure satellite network for defense and government,,,,,,,Government and defense contracts,"The national-security version of Starlink | May 2026: cleared by the Pentagon to handle its most sensitive data, IL6 and IL7","The quiet, high-margin government layer most retail investors never hear about.",#,https://www.morningstar.com/stocks/6-charts-spacexs-s-1-financials,2026-06-09
+grok,spacexai,3,product,Grok,public,,,2,,,,"The xAI chatbot, built to rival ChatGPT",,,,,,,"Now runs Starlink's support line, resolving 70% of calls before a human","About 117 million people use Grok features | Handles Starlink customer support, with 1 in 5 callers buying on the call | SpaceX has an option to buy the coding tool Cursor, partly for its data to retrain Grok | Grok 5 is training on the Colossus 2 cluster",The product SpaceX is spending heavily to rebuild. Watch whether Cursor's data closes the gap with the leading models.,https://youtu.be/Cqi9V87t8WE,https://www.cnbc.com/2026/02/03/musk-xai-spacex-biggest-merger-ever.html,2026-06-09
+x,spacexai,3,product,X,public,,,1.2,,,,The social network formerly called Twitter,,,,,,,Feeds data to Grok,"About 350 million posts a day | Around 550 million monthly users across X and Grok | Bought by Elon in 2022, folded into the AI segment in 2026",Now valuable mainly as fuel for Grok rather than as an ad business.,#,https://www.cnbc.com/2026/02/03/musk-xai-spacex-biggest-merger-ever.html,2026-06-09
+automotive,tesla,2,segment,Automotive,public,,,80,,,,"Designing, building and selling electric vehicles",,,$16.2B,Q1 2026,+16% YoY,,,~1.64M vehicles delivered in 2025 | Tesla's largest revenue source | Deliveries have flattened,Deliveries have flattened. The bull case has quietly shifted from selling more cars to robotaxi and software.,#,https://www.sec.gov/Archives/edgar/data/0001318605/000162828026003837/exhibit991.htm
+energy,tesla,2,segment,Energy,public,,,12.77,,,,"Batteries for homes and the grid (Powerwall, Megapack)",$12.8B (2025),+27% YoY,$2.4B,Q1 2026,-12% YoY,,,"Powerwall for homes, Megapack for grids | Launched Megapack 3 and Megablock | Quarterly revenue is lumpy by project timing","The fastest-growing part of Tesla over the full year, even though it dipped last quarter. This is the number I watch.",#,https://www.sec.gov/Archives/edgar/data/0001318605/000162828026003837/exhibit991.htm
+fsd,tesla,2,segment,Full Self-Driving,public,,,9,,,,"Tesla's self-driving software, the bet on autonomy",,,,,,,Sold per car or as a monthly subscription,"Sold as Full Self-Driving (Supervised) | Powers the Robotaxi service | Hardware 3 cars built 2019 to 2023 cannot run unsupervised FSD, confirmed April 2026 | Take rate is rarely disclosed",This is where Tesla's valuation story has quietly moved. The cars fund it; the software is the bet.,#,https://www.sec.gov/Archives/edgar/data/0001318605/000162828026003952/tsla-20251231.htm,2026-06-09
+optimus,tesla,2,segment,Optimus,public,,,5,,,,Tesla's humanoid robot,,,,,,,Pre-production; Gen 3 reveal due July or August 2026,"Used so far for learning and data collection, not yet regular factory work | Chinese makers shipped over 10,000 humanoids in 2025, one priced at $5,900 | The Fremont line that built Model S and X is converting to Optimus, target 1 million a year | Analyst value estimates range widely, from nothing in some base cases to about $93B","Mostly optionality today: real ambition, no revenue yet. Watch the Gen 3 reveal and the first production numbers at Q3 earnings.",https://youtu.be/bKtCoqApY3o,https://www.sec.gov/Archives/edgar/data/0001318605/000162828026003952/tsla-20251231.htm,2026-06-09
+model3y,automotive,3,product,Model 3 & Y,public,,,55,,,,The two mass-market cars that carry Tesla's volume,,,,,,,Most of Tesla's ~1.64M 2025 deliveries,Among the best-selling EVs in the world | Volume has flattened,"Volume here has flattened, the heart of the stalled-growth story.",#,https://www.sec.gov/Archives/edgar/data/0001318605/000162828026003837/exhibit991.htm
+othervehicles,automotive,3,product,Other Vehicles,public,,,18,,,,The rest of the lineup beyond the mass-market cars,,,,,,,"Model S, X, Cybertruck and Semi","Lower volume, higher price or niche | Cybertruck ramp has underwhelmed","Halo and niche products, not the volume engine.",#,https://www.sec.gov/Archives/edgar/data/0001318605/000162828026003837/exhibit991.htm
+fsdsub,fsd,3,product,FSD Subscription,public,,,4,,,,Monthly subscription revenue from self-driving,,,,,,,"1.28M subscribers in Q1 2026, up 51% YoY",Monthly subscription for FSD (Supervised) | High-margin recurring revenue,Tesla rarely broke this out before. Now the subscriber base is disclosed and growing. Real recurring revenue.,#,https://www.sec.gov/Archives/edgar/data/0001318605/000162828026003952/tsla-20251231.htm,2026-06-09
+robotaxi,fsd,3,product,Robotaxi,public,,,3,,,,The autonomous ride-hailing service,,,,,,,Launched Jun 2025 (Cybercab),Uses the purpose-built Cybercab | Central to the autonomy case,The entire autonomy thesis rests on this scaling. Still very early.,#,https://www.sec.gov/Archives/edgar/data/0001318605/000162828026003837/exhibit991.htm
+terafab,elon,1,jv,TeraFab,,,,30,,,,The chip factory jointly built by Tesla and SpaceX,,,,,,,"Joint venture, not publicly tradeable","A joint chip factory shared by Tesla, SpaceX and xAI | Full breakdown coming in an upcoming video",,#,
+</script>
+
+<script>
+// ---------- CSV ----------
+function parseCSV(text){
+  const rows=[];let i=0,f="",row=[],q=false;text=text.replace(/\r\n?/g,"\n");
+  while(i<text.length){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i+=2;continue;}q=false;i++;continue;}f+=c;i++;continue;}
+    if(c==='"'){q=true;i++;continue;}
+    if(c===","){row.push(f);f="";i++;continue;}
+    if(c==="\n"){row.push(f);rows.push(row);row=[];f="";i++;continue;}
+    f+=c;i++;}
+  if(f.length||row.length){row.push(f);rows.push(row);}
+  const head=rows.shift().map(h=>h.trim());
+  return rows.filter(r=>r.length>1).map(r=>{const o={};head.forEach((h,k)=>o[h]=(r[k]??"").trim());return o;});
+}
+async function loadData(){
+  try{const res=await fetch('data.csv',{cache:'no-store'});if(res.ok){const t=await res.text();if(t.indexOf('id,parent')===0)return parseCSV(t);}}catch(e){}
+  return parseCSV(document.getElementById('fallback-csv').textContent);
+}
+
+// ---------- tree ----------
+let BYID={}, ROOT=null, NODES=[], LINES=[];
+function buildTree(rows){
+  BYID={};rows.forEach(r=>{r.children=[];r.level=+r.level;BYID[r.id]=r;});
+  rows.forEach(r=>{if(!r.parent)ROOT=r;else if(BYID[r.parent])BYID[r.parent].children.push(r);});
+}
+function branchOf(n){ if(n.level===0)return 'hub'; let c=n; while(c.parent&&BYID[c.parent]&&BYID[c.parent].level>0)c=BYID[c.parent]; return c.id; }
+function bubbleClass(n){
+  if(n.type==='hub')return 'b-hub';
+  if(n.type==='jv')return 'b-jv';
+  if(n.status==='private')return 'b-priv';
+  const b=branchOf(n); return b==='tesla'?'b-tesla':'b-spacex';
+}
+
+// ---------- raw layout (SpaceX left, Tesla right) ----------
+const D1=330,D1p=270,D2=235,D3=170;
+const ANCH={spacex:180,tesla:0,boring:238,neuralink:302,terafab:90};
+const rad=d=>d*Math.PI/180, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function rawLayout(){
+  ROOT.rx=0;ROOT.ry=0;
+  ROOT.children.forEach(c=>{
+    const a=ANCH[c.id]!==undefined?ANCH[c.id]:0;
+    const dist=(c.id==='boring'||c.id==='neuralink')?D1p:(c.id==='terafab'?285:D1);
+    c.rx=dist*Math.cos(rad(a));c.ry=dist*Math.sin(rad(a));
+    if(c.children.length)fan(c,a,clamp(c.children.length*19,34,64),D2);
+  });
+}
+function fan(node,outDeg,halfDeg,dist){
+  const ch=node.children,n=ch.length;
+  ch.forEach((c,i)=>{
+    const a=n===1?outDeg:outDeg-halfDeg+(i+0.5)/n*(2*halfDeg);
+    c.rx=node.rx+dist*Math.cos(rad(a));c.ry=node.ry+dist*Math.sin(rad(a));
+    if(c.children.length)fan(c,a,clamp(c.children.length*19,34,42),D3);
+  });
+}
+
+// ---------- sizing (log, compressed) ----------
+const SIZE={hub:[146,146],company:[104,182],segment:[74,110],product:[58,86],jv:[96,96]};
+let MM={};
+function computeSizes(rows){
+  const g={};rows.forEach(r=>{if(r.type==='hub')return;(g[r.type]=g[r.type]||[]).push(Math.log(Math.max(1.01,+r.value_b||1)));});
+  MM={};for(const t in g)MM[t]=[Math.min(...g[t]),Math.max(...g[t])];
+  rows.forEach(r=>{
+    if(r.type==='hub'){r._bs=SIZE.hub[0];return;}
+    const[lo,hi]=SIZE[r.type]||[50,80];const[a,b]=MM[r.type]||[1,1];
+    const v=Math.log(Math.max(1.01,+r.value_b||1));const t=(b-a)<1e-6?.5:(v-a)/(b-a);
+    r._bs=Math.round(lo+t*(hi-lo));
+  });
+}
+
+// ---------- fit to viewport ----------
+let FIT={scale:1,sizeScale:1};
+function layout(){
+  const W=innerWidth,H=innerHeight;
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+  NODES.forEach(n=>{mnx=Math.min(mnx,n.rx);mxx=Math.max(mxx,n.rx);mny=Math.min(mny,n.ry);mxy=Math.max(mxy,n.ry);});
+  const rawW=mxx-mnx||1,rawH=mxy-mny||1,rcx=(mnx+mxx)/2,rcy=(mny+mxy)/2;
+  const margin=95,availW=W*0.96-2*margin,availH=H*0.92-2*margin;
+  const scale=Math.min(availW/rawW,availH/rawH);
+  const sizeScale=Math.max(Math.min(scale,1.0),0.55);
+  const cx=W/2,cy=H*0.53;
+  FIT={scale,sizeScale};
+  NODES.forEach(n=>{
+    n.bx=cx+(n.rx-rcx)*scale; n.by=cy+(n.ry-rcy)*scale;
+    const d=Math.round(n._bs*sizeScale);
+    n.bub.style.width=d+'px';n.bub.style.height=d+'px';
+    let fs = d<54?9.5 : d<70?11 : d<100?12.5 : d<150?15 : 18;
+    const m=(n.id==='elon'||n.id==='spacex'||n.id==='tesla')?1.5:1.2;
+    n.lblEl.style.fontSize=(fs*m).toFixed(1)+'px';
+  });
+}
+
+// ---------- render once ----------
+const stage=document.getElementById('stage'),svg=document.getElementById('links'),tip=document.getElementById('tip');
+function render(rows){
+  buildTree(rows);rawLayout();computeSizes(rows);
+  NODES=rows.slice();
+  rows.forEach(n=>{
+    const node=document.createElement('div');node.className='node';
+    const bub=document.createElement('div');bub.className='bubble '+bubbleClass(n)+(n.type==='product'?' deep':'');
+    const lbl=document.createElement('div');lbl.className='lbl';
+    if(n.type==='hub'){lbl.innerHTML='ELON<small id="hubNet"></small>';}else lbl.textContent=n.name;
+    bub.appendChild(lbl);
+    if(n.ticker&&n.status==='public'&&n.shares_b){const lv=document.createElement('div');lv.className='badge-live';lv.id='live-'+n.id;lv.textContent='CLOSE';lv.style.display='none';bub.appendChild(lv);}
+    bub.addEventListener('mousemove',e=>showNodeTip(e,n));
+    bub.addEventListener('mouseleave',hideTip);
+    bub.addEventListener('click',()=>openPanel(n));
+    node.appendChild(bub);stage.appendChild(node);
+    n.el=node;n.bub=bub;n.lblEl=lbl;
+  });
+  // lines
+  rows.forEach(n=>{
+    if(n.type==='jv'){
+      ['spacex','tesla'].forEach(pid=>{const pp=BYID[pid];if(!pp)return;
+        const jp=document.createElementNS('http://www.w3.org/2000/svg','path');
+        jp.setAttribute('fill','none');jp.setAttribute('stroke','#f5b301');jp.setAttribute('stroke-width',2);
+        jp.setAttribute('stroke-linecap','round');jp.setAttribute('stroke-dasharray','7 7');jp.style.opacity=.7;
+        svg.appendChild(jp);LINES.push({p:pp,c:n,path:jp,hit:null});});
+      return;
+    }
+    if(!n.parent)return;const p=BYID[n.parent];if(!p)return;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    let w=1.4,col='#2a3f5a',dash='',op=.6;
+    if(n.level===1){
+      if(n.status==='private'){w=2;col='#6a7c93';dash='7 7';op=.8;}
+      else{w=2.5+(+n.votes_pct/100)*6;col='#ff1c1c';op=.95;}
+    }else{
+      const b=branchOf(n);col=b==='tesla'?'#ff5a5e':'#4aa8ff';
+      w=n.level===2?2.1:1.5; op=n.level===2?.7:.6;
+    }
+    path.setAttribute('fill','none');path.setAttribute('stroke',col);path.setAttribute('stroke-width',w);
+    path.setAttribute('stroke-linecap','round');if(dash)path.setAttribute('stroke-dasharray',dash);
+    path.style.opacity=op;
+    svg.appendChild(path);
+    let hit=null;
+    if(n.level===1){
+      hit=document.createElementNS('http://www.w3.org/2000/svg','path');
+      hit.setAttribute('class','hit');hit.setAttribute('fill','none');hit.setAttribute('stroke','transparent');
+      hit.setAttribute('stroke-width',Math.max(16,w+12));hit.style.cursor='help';
+      hit.addEventListener('mousemove',e=>showLineTip(e,n));hit.addEventListener('mouseleave',hideTip);
+      svg.appendChild(hit);
+    }
+    LINES.push({p,c:n,path,hit});
+  });
+  layout();updateHubNet();requestAnimationFrame(animate);
+}
+
+// ---------- floating animation ----------
+function seed(n){n._ax=4+Math.random()*7;n._ay=4+Math.random()*7;n._fx=.18+Math.random()*.3;n._fy=.18+Math.random()*.3;n._px=Math.random()*6.28;n._py=Math.random()*6.28;}
+function animate(t){
+  t/=1000;
+  NODES.forEach(n=>{
+    if(n._ax===undefined)seed(n);
+    const ox=n._ax*Math.sin(t*n._fx+n._px), oy=n._ay*Math.sin(t*n._fy+n._py);
+    n.cx=n.bx+ox;n.cy=n.by+oy;
+    n.el.style.transform=`translate(${n.cx}px,${n.cy}px)`;
+  });
+  LINES.forEach(l=>{
+    const d=`M${l.p.cx},${l.p.cy} L${l.c.cx},${l.c.cy}`;
+    l.path.setAttribute('d',d);if(l.hit)l.hit.setAttribute('d',d);
+  });
+  requestAnimationFrame(animate);
+}
+
+// ---------- tooltips ----------
+function hoverNum(n){
+  if(n.type==='hub')return n.valuation;
+  if(n.status==='private')return n.valuation?('Valuation: '+n.valuation):'';
+  if(n.type==='company')return LIVE['cap2-'+n.id]?(LIVE['cap2-'+n.id]+' market cap'):(n.valuation||'');
+  if(n.type==='segment')return n.rev_a?('Revenue: '+n.rev_a):'';
+  return n.rev_a?('Revenue: '+n.rev_a):(n.metric||'');
+}
+function showNodeTip(e,n){
+  const cls=bubbleClass(n);const vcol=cls==='b-tesla'?'#ff9a9c':cls==='b-spacex'?'#7cc0ff':cls==='b-hub'?'#ff8a8a':cls==='b-jv'?'#ffcf6b':'#aebccd';
+  const v=hoverNum(n);
+  tip.innerHTML=`<h4>${n.name}</h4><p class="d">${n.desc||''}</p>`+(v?`<div class="v" style="color:${vcol}">${v}</div>`:'');
+  placeTip(e);
+}
+function showLineTip(e,n){
+  let html;
+  if(n.status==='private')html=`<h4>Elon → ${n.name}</h4><p class="d">Private holding. His exact stake isn't disclosed, and you can't buy in.</p>`;
+  else html=`<h4>Elon → ${n.name}</h4><div class="own">Owns ${n.owns_pct}% &nbsp;·&nbsp; ${n.votes_pct}% of the votes</div>`+
+    (n.owns_pct!==n.votes_pct?`<p class="d" style="margin-top:5px">He controls more than he owns.</p>`:`<p class="d" style="margin-top:5px">One share, one vote. Control matches ownership.</p>`);
+  tip.innerHTML=html;placeTip(e);
+}
+function placeTip(e){tip.style.opacity='1';const pad=14;let x=e.clientX+pad,y=e.clientY+pad;const r=tip.getBoundingClientRect();
+  if(x+r.width>innerWidth-8)x=e.clientX-r.width-pad;if(y+r.height>innerHeight-8)y=e.clientY-r.height-pad;tip.style.left=x+'px';tip.style.top=y+'px';}
+function hideTip(){tip.style.opacity='0';}
+
+// ---------- panel ----------
+const panel=document.getElementById('panel');
+function openPanel(n){
+  const pill=document.getElementById('pPill');let cls,txt;
+  if(n.type==='hub'){cls='hub';txt='THE OWNER';}
+  else if(n.type==='jv'){cls='jv';txt='JOINT VENTURE';}
+  else if(n.status==='private'){cls='priv';txt='PRIVATE';}
+  else{const b=branchOf(n);cls=b==='tesla'?'tesla':'spacex';
+    txt = n.type==='company'?('PUBLIC · '+(n.ticker||'')):(n.type==='segment'?'SEGMENT':'DIVISION');}
+  pill.className='pill '+cls;pill.textContent=txt;
+  document.getElementById('pName').textContent=n.name;
+  document.getElementById('pDesc').textContent=n.desc||'';
+  const accent = n.type==='jv'?'#ffcf6b':n.status==='private'?'#aebccd':(cls==='tesla'||cls==='hub')?'#ff9a9c':'#7cc0ff';
+  // stat strip (each number lives here once)
+  const si=(k,v)=>v?`<div class="stat-i"><div class="k">${k}</div><div class="val">${v}</div></div>`:'';
+  const pName=BYID[n.parent]?BYID[n.parent].name:'';
+  let strip='';
+  if(n.type==='hub') strip=si('Net worth',n.valuation)+si('Control gap',n.metric)+si('As of',ASOF);
+  else if(n.type==='jv') strip=si('Type','Joint venture')+si('Owners','Tesla + SpaceX')+si('Tradeable','No, private');
+  else if(n.status==='private') strip=si('Valuation',n.valuation)+si('Last round',n.metric)+si('Tradeable','No, private');
+  else if(n.type==='company') strip=si('Price',LIVE['price-'+n.id]||'Lists ~Jun 12')+si('Market cap',LIVE['cap2-'+n.id]||n.valuation)+si('Elon stake',n.owns_pct+'% / '+n.votes_pct+'% votes');
+  else if(n.type==='segment') strip=si('Part of',pName)+si('Op. income/loss',n.profit);
+  else strip=si('Part of',pName)+si('Key fact',n.metric);
+  document.getElementById('pStrip').innerHTML=strip;
+  // facts: 2 standardized (annual + latest quarter, anchored) then specifics
+  document.getElementById('factsHead').textContent=n.type==='hub'?'The numbers':'The facts';
+  const fl=document.getElementById('pFacts');fl.innerHTML='';
+  const lines=[];
+  if(n.rev_a) lines.push('Annual revenue: '+n.rev_a+(n.rev_a_yoy?', '+n.rev_a_yoy:''));
+  if(n.rev_q) lines.push('Latest quarter ('+(n.rev_q_period||'recent')+'): '+n.rev_q+(n.rev_q_yoy?', '+n.rev_q_yoy:''));
+  if(n.profit && n.type!=='segment') lines.push(n.profit);
+  (n.facts||'').split('|').map(s=>s.trim()).filter(Boolean).forEach(f=>lines.push(f));
+  lines.forEach(f=>{const li=document.createElement('li');li.textContent=f;li.style.color=accent;fl.appendChild(li);});
+  document.getElementById('pTake').textContent=n.take||'';
+  const vid=document.getElementById('pVid');
+  if(n.video_url&&n.video_url!=='#'){vid.href=n.video_url;vid.className='vid';vid.textContent='▶ Watch my breakdown';}
+  else{vid.removeAttribute('href');vid.className='vid disabled';vid.textContent='▶ Video coming soon';}
+  const chkHtml=n.checked?`<div class="checked" style="color:#8ea2bb;font-size:11.5px">Last checked on ${fmtDate(n.checked)}</div>`:'';
+  document.getElementById('pSrc').innerHTML=chkHtml;
+  panel.classList.add('open');panel.setAttribute('aria-hidden','false');
+}
+function closePanel(){panel.classList.remove('open');panel.setAttribute('aria-hidden','true');}
+document.getElementById('close').onclick=closePanel;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel();});
+
+// ---------- live prices ----------
+const LIVE={};
+function fmtT(b){return b>=1000?'$'+(b/1000).toFixed(2)+'T':'$'+b.toFixed(0)+'B';}
+function fmtDate(iso){const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const p=(iso||'').split('-');if(p.length!==3)return iso||'';return m[+p[1]-1]+' '+(+p[2])+', '+p[0];}
+let ASOF='Jun 2026';
+// Reads prices.json (kept fresh daily by the GitHub Action). Falls back to the
+// static valuation in data.csv when the file is unavailable (e.g. local file://).
+async function liveUpdate(){
+  let data=null;
+  try{const r=await fetch('prices.json',{cache:'no-store'});if(r.ok)data=await r.json();}catch(e){}
+  if(!data)return;
+  if(data.asof){ASOF=fmtDate(data.asof);const a=document.getElementById('asof');if(a)a.textContent=ASOF;}
+  if(data.networth&&BYID['elon']){BYID['elon'].valuation=data.networth;updateHubNet();}
+  const T=data.tickers||{};
+  for(const n of NODES){
+    if(n.ticker&&n.status==='public'&&n.shares_b){
+      const px=T[n.ticker];
+      if(px&&isFinite(px)){const cap=px*(+n.shares_b);
+        LIVE['price-'+n.id]='$'+(+px).toFixed(0);LIVE['cap2-'+n.id]=fmtT(cap);
+        const b=document.getElementById('live-'+n.id);if(b)b.style.display='block';}
+    }
+  }
+}
+function updateHubNet(){const hub=BYID['elon'];if(!hub)return;const s=document.getElementById('hubNet');if(s)s.textContent=(hub.valuation||'');}
+
+// ---------- pan & zoom ----------
+const viewport=document.getElementById('viewport');
+let panX=0,panY=0,zoom=1;
+function applyView(){viewport.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`;}
+function resetView(){panX=0;panY=0;zoom=1;applyView();}
+function zoomAt(sx,sy,factor){
+  const nz=clamp(zoom*factor,0.45,4.5);
+  panX=sx-(sx-panX)*(nz/zoom); panY=sy-(sy-panY)*(nz/zoom); zoom=nz; applyView();
+}
+viewport.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,e.deltaY<0?1.12:1/1.12);},{passive:false});
+
+// pointer drag (pan) + click-empty-to-close + pinch
+const pts=new Map();let dragStart=null,moved=false,pinch=null;
+function onBubble(t){return t&&t.closest&&t.closest('.bubble');}
+viewport.addEventListener('pointerdown',e=>{
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pts.size===2){
+    const[a,b]=[...pts.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y),cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,z:zoom};dragStart=null;return;
+  }
+  if(onBubble(e.target))return; // let the bubble handle its click
+  dragStart={x:e.clientX,y:e.clientY,px:panX,py:panY,target:e.target};moved=false;
+  viewport.classList.add('grabbing');viewport.setPointerCapture(e.pointerId);
+});
+viewport.addEventListener('pointermove',e=>{
+  if(pts.has(e.pointerId))pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&pts.size>=2){
+    const[a,b]=[...pts.values()];const nd=Math.hypot(a.x-b.x,a.y-b.y);
+    zoomAt(pinch.cx,pinch.cy,(nd/pinch.d)/(zoom/pinch.z));return;
+  }
+  if(!dragStart)return;
+  const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;
+  if(Math.abs(dx)+Math.abs(dy)>4)moved=true;
+  panX=dragStart.px+dx;panY=dragStart.py+dy;applyView();
+});
+function endPointer(e){
+  pts.delete(e.pointerId);if(pts.size<2)pinch=null;
+  if(dragStart){
+    if(!moved && !onBubble(dragStart.target)) closePanel();
+    dragStart=null;viewport.classList.remove('grabbing');
+  }
+}
+viewport.addEventListener('pointerup',endPointer);
+viewport.addEventListener('pointercancel',endPointer);
+
+// ---------- legend toggle ----------
+document.getElementById('legToggle').onclick=()=>document.getElementById('legend').classList.toggle('collapsed');
+
+addEventListener('resize',()=>{const W=innerWidth,H=innerHeight;svg.setAttribute('width',W);svg.setAttribute('height',H);resetView();layout();});
+loadData().then(rows=>{svg.setAttribute('width',innerWidth);svg.setAttribute('height',innerHeight);render(rows);liveUpdate();});
+</script>
+</body>
+</html>
