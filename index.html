@@ -340,12 +340,12 @@ function layoutMobile(){
   NODES.forEach(n=>n.hidden=true);
   f.hidden=false;kids.forEach(k=>k.hidden=false);if(par)par.hidden=false;
   const cx=W/2;
-  if(par){setBubbleSize(par,Math.round(clamp(W*0.14,48,66)));par.bx=cx;par.by=H*0.085;}
-  const Df=Math.round(clamp(W*0.30,100,150));setBubbleSize(f,Df);f.bx=cx;f.by=par?H*0.21:H*0.15;
-  const areaTop=f.by+Df/2+H*0.045,areaBot=H*0.93,n=kids.length;
+  if(par){setBubbleSize(par,Math.round(clamp(W*0.15,52,70)));par.bx=cx;par.by=H*0.085;}
+  const Df=Math.round(clamp(W*0.35,116,172));setBubbleSize(f,Df);f.bx=cx;f.by=par?H*0.225:H*0.15;
+  const areaTop=f.by+Df/2+H*0.04,areaBot=H*0.94,n=kids.length;
   const perRow=n===1?1:2,numRows=Math.ceil(n/perRow),rowH=(areaBot-areaTop)/Math.max(1,numRows);
-  const gap=W*0.06,maxWcol=(W-(perRow+1)*gap)/perRow,childMax=Df*0.80;
-  const Dc=clamp(Math.min(maxWcol,rowH*0.80,childMax),54,childMax);
+  const gap=W*0.055,maxWcol=(W-(perRow+1)*gap)/perRow,childMax=Df*0.82;
+  const Dc=clamp(Math.min(maxWcol,rowH*0.86,childMax),58,childMax);
   kids.forEach((k,i)=>{
     const r=Math.floor(i/perRow),c=i%perRow,inRow=Math.min(perRow,n-r*perRow);
     const rowY=areaTop+rowH*(r+0.5);
