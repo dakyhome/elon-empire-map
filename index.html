@@ -49,7 +49,7 @@
   .bubble{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:auto;
     border-radius:50%;display:grid;place-items:center;text-align:center;cursor:pointer;
     border:1.5px solid #ffffff26;line-height:1.04;font-weight:700;
-    transition:transform .15s ease, box-shadow .2s ease, filter .2s ease}
+    transition:transform .15s ease, box-shadow .2s ease, filter .2s ease, width .34s cubic-bezier(.4,0,.2,1), height .34s cubic-bezier(.4,0,.2,1), font-size .34s ease}
   .bubble:hover{transform:translate(-50%,-50%) scale(1.08);z-index:9;filter:brightness(1.08)}
   .bubble .lbl{padding:5px;pointer-events:none;overflow:hidden}
 
@@ -140,6 +140,12 @@
   .lgline{width:22px;height:0;flex:none;border-top:5px solid var(--red);border-radius:3px}
   .lgline.thin{border-top-width:1.5px;border-top-color:#6a7c93}
   #updated{position:fixed;right:14px;bottom:12px;z-index:30;font-size:10.5px;color:var(--ink-faint)}
+  #backBtn{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:45;display:none;
+    background:#0e1a2cf2;border:1px solid var(--stroke);color:var(--ink);font:inherit;font-weight:700;font-size:14px;
+    padding:10px 22px;border-radius:22px;cursor:pointer;box-shadow:0 6px 22px #0009;backdrop-filter:blur(4px)}
+  #backBtn:active{background:#16243a}
+  #hint{position:fixed;left:50%;top:auto;bottom:64px;transform:translateX(-50%);z-index:30;display:none;
+    font-size:12px;color:var(--ink-dim);background:#0a1626cc;border:1px solid var(--stroke);border-radius:20px;padding:5px 13px;pointer-events:none}
   @media (max-width:640px){ .stat{display:none} #legend{display:none} .title h1{font-size:16px} }
 </style>
 </head>
@@ -158,6 +164,8 @@
   <div id="stage"></div>
 </div>
 <div id="tip"></div>
+<div id="hint">Tap a bubble to open it up</div>
+<button id="backBtn" aria-label="Back">&#8249;&nbsp; Back</button>
 
 <aside id="panel" aria-hidden="true">
   <div class="ph">
@@ -287,7 +295,27 @@ function computeSizes(rows){
 
 // ---------- fit to viewport ----------
 let FIT={scale:1,sizeScale:1};
+// is this a phone-sized screen? (drill-down mode)
+const isMobile=()=>matchMedia('(max-width:640px)').matches;
+let MOBILE=false, focusId=null;
+
+// set a bubble's pixel size + label font in one place
+function setBubbleSize(n,d){
+  n.bub.style.width=d+'px';n.bub.style.height=d+'px';
+  let fs = d<54?9.5 : d<70?11 : d<100?12.5 : d<150?15 : 18;
+  const m=(n.id==='elon'||n.id==='spacex'||n.id==='tesla')?1.4:1.15;
+  n.lblEl.style.fontSize=(fs*m).toFixed(1)+'px';
+}
+// size children a touch by relative value, so bigger value still reads bigger
+function sizeMod(k,sibs){const vs=sibs.map(s=>s._bs);const lo=Math.min(...vs),hi=Math.max(...vs);
+  if(hi-lo<1)return 1;return 0.82+0.36*((k._bs-lo)/(hi-lo));}
+
 function layout(){
+  MOBILE=isMobile();
+  if(MOBILE){layoutMobile();updateBack();return;}
+  // ---- desktop: full constellation (unchanged) ----
+  NODES.forEach(n=>{n.hidden=false;n.el.style.display='';});
+  LINES.forEach(l=>{l.path.style.display='';if(l.hit)l.hit.style.display='';});
   const W=innerWidth,H=innerHeight;
   let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
   NODES.forEach(n=>{mnx=Math.min(mnx,n.rx);mxx=Math.max(mxx,n.rx);mny=Math.min(mny,n.ry);mxy=Math.max(mxy,n.ry);});
@@ -299,12 +327,39 @@ function layout(){
   FIT={scale,sizeScale};
   NODES.forEach(n=>{
     n.bx=cx+(n.rx-rcx)*scale; n.by=cy+(n.ry-rcy)*scale;
-    const d=Math.round(n._bs*sizeScale);
-    n.bub.style.width=d+'px';n.bub.style.height=d+'px';
-    let fs = d<54?9.5 : d<70?11 : d<100?12.5 : d<150?15 : 18;
-    const m=(n.id==='elon'||n.id==='spacex'||n.id==='tesla')?1.5:1.2;
-    n.lblEl.style.fontSize=(fs*m).toFixed(1)+'px';
+    setBubbleSize(n,Math.round(n._bs*sizeScale));
   });
+  updateBack();
+}
+
+// ---- mobile: one focus node + its children, drill in on tap ----
+function layoutMobile(){
+  const W=innerWidth,H=innerHeight;
+  if(focusId==null||!BYID[focusId])focusId=ROOT.id;
+  const f=BYID[focusId],par=f.parent?BYID[f.parent]:null,kids=f.children;
+  NODES.forEach(n=>n.hidden=true);
+  f.hidden=false;kids.forEach(k=>k.hidden=false);if(par)par.hidden=false;
+  const cx=W/2;
+  if(par){setBubbleSize(par,Math.round(clamp(W*0.14,48,66)));par.bx=cx;par.by=H*0.085;}
+  const Df=Math.round(clamp(W*0.30,96,150));setBubbleSize(f,Df);f.bx=cx;f.by=par?H*0.21:H*0.15;
+  const areaTop=f.by+Df/2+H*0.045,areaBot=H*0.93,n=kids.length;
+  const perRow=n<=3?1:2,numRows=Math.ceil(n/perRow),rowH=(areaBot-areaTop)/Math.max(1,numRows);
+  const gap=W*0.06,maxW=(perRow===1?W*0.62:(W-3*gap)/2);
+  const Dc=clamp(Math.min(maxW,rowH*0.82),60,140);
+  kids.forEach((k,i)=>{
+    const r=Math.floor(i/perRow),c=i%perRow,inRow=Math.min(perRow,n-r*perRow);
+    const rowY=areaTop+rowH*(r+0.5);
+    let x;if(inRow===1)x=cx;else{const tot=inRow*Dc+(inRow-1)*gap;x=cx-tot/2+Dc/2+c*(Dc+gap);}
+    setBubbleSize(k,Math.round(Dc*sizeMod(k,kids)));k.bx=x;k.by=rowY;
+  });
+  // show/hide DOM; new bubbles spawn from the focus center so they glide outward
+  NODES.forEach(nd=>{
+    if(nd.hidden){nd.el.style.display='none';}
+    else{if(nd.el.style.display==='none'){nd.cx=f.bx;nd.cy=f.by;}nd.el.style.display='';}
+  });
+  // only show real parent->child lines among visible nodes
+  LINES.forEach(l=>{const vis=!l.p.hidden&&!l.c.hidden&&(l.c.parent===l.p.id);
+    l.path.style.display=vis?'':'none';if(l.hit)l.hit.style.display=vis?'':'none';});
 }
 
 // ---------- render once ----------
@@ -320,7 +375,7 @@ function render(rows){
     bub.appendChild(lbl);
     bub.addEventListener('mousemove',e=>showNodeTip(e,n));
     bub.addEventListener('mouseleave',hideTip);
-    bub.addEventListener('click',()=>openPanel(n));
+    bub.addEventListener('click',()=>onBubbleTap(n));
     node.appendChild(bub);stage.appendChild(node);
     n.el=node;n.bub=bub;n.lblEl=lbl;
   });
@@ -366,12 +421,17 @@ function seed(n){n._ax=4+Math.random()*7;n._ay=4+Math.random()*7;n._fx=.18+Math.
 function animate(t){
   t/=1000;
   NODES.forEach(n=>{
+    if(n.hidden)return;
     if(n._ax===undefined)seed(n);
     const ox=n._ax*Math.sin(t*n._fx+n._px), oy=n._ay*Math.sin(t*n._fy+n._py);
-    n.cx=n.bx+ox;n.cy=n.by+oy;
+    const tx=n.bx+ox, ty=n.by+oy;
+    if(n.cx===undefined){n.cx=tx;n.cy=ty;}
+    else if(MOBILE){n.cx+=(tx-n.cx)*0.15;n.cy+=(ty-n.cy)*0.15;}   // glide for the drill-in zoom feel
+    else {n.cx=tx;n.cy=ty;}                                        // desktop: exact (unchanged)
     n.el.style.transform=`translate(${n.cx}px,${n.cy}px)`;
   });
   LINES.forEach(l=>{
+    if(l.path.style.display==='none')return;
     const d=`M${l.p.cx},${l.p.cy} L${l.c.cx},${l.c.cy}`;
     l.path.setAttribute('d',d);if(l.hit)l.hit.setAttribute('d',d);
   });
@@ -387,12 +447,14 @@ function hoverNum(n){
   return n.rev_a?('Revenue: '+n.rev_a):(n.metric||'');
 }
 function showNodeTip(e,n){
+  if(MOBILE)return;
   const cls=bubbleClass(n);const vcol=cls==='b-tesla'?'#ff9a9c':cls==='b-spacex'?'#7cc0ff':cls==='b-hub'?'#ff8a8a':cls==='b-jv'?'#ffcf6b':'#aebccd';
   const v=hoverNum(n);
   tip.innerHTML=`<h4>${n.name}</h4><p class="d">${n.desc||''}</p>`+(v?`<div class="v" style="color:${vcol}">${v}</div>`:'');
   placeTip(e);
 }
 function showLineTip(e,n){
+  if(MOBILE)return;
   let html;
   if(n.status==='private')html=`<h4>Elon → ${n.name}</h4><p class="d">Private holding. His exact stake isn't disclosed, and you can't buy in.</p>`;
   else html=`<h4>Elon → ${n.name}</h4><div class="own">Owns ${n.owns_pct}% &nbsp;·&nbsp; ${n.votes_pct}% of the votes</div>`+
@@ -446,7 +508,28 @@ function openPanel(n){
 }
 function closePanel(){panel.classList.remove('open');panel.setAttribute('aria-hidden','true');}
 document.getElementById('close').onclick=closePanel;
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(panel.classList.contains('open'))closePanel();else if(MOBILE)goUp();}});
+
+// ---------- mobile drill-down ----------
+function onBubbleTap(n){
+  if(!MOBILE){openPanel(n);return;}            // desktop: tap = detail (unchanged)
+  if(n.id===focusId)return openPanel(n);        // tap the focused bubble = its detail
+  if(n.children.length)return setFocus(n.id);   // tap a bubble with children = drill in (or up, for the parent)
+  openPanel(n);                                 // leaf = its detail
+}
+function setFocus(id){
+  if(!BYID[id])return;
+  focusId=id;closePanel();resetView();
+  layout();
+  const hint=document.getElementById('hint');if(hint)hint.style.display='none';
+}
+function goUp(){const p=BYID[focusId]&&BYID[focusId].parent;if(p)setFocus(p);}
+function updateBack(){
+  const b=document.getElementById('backBtn');if(!b)return;
+  const show=MOBILE&&BYID[focusId]&&BYID[focusId].parent;
+  b.style.display=show?'block':'none';
+}
+document.getElementById('backBtn').onclick=goUp;
 
 // ---------- live prices ----------
 const LIVE={};
@@ -529,7 +612,9 @@ viewport.addEventListener('pointercancel',endPointer);
 document.getElementById('legToggle').onclick=()=>document.getElementById('legend').classList.toggle('collapsed');
 
 addEventListener('resize',()=>{const W=innerWidth,H=innerHeight;svg.setAttribute('width',W);svg.setAttribute('height',H);resetView();layout();});
-loadData().then(rows=>{svg.setAttribute('width',innerWidth);svg.setAttribute('height',innerHeight);render(rows);liveUpdate();});
+loadData().then(rows=>{svg.setAttribute('width',innerWidth);svg.setAttribute('height',innerHeight);render(rows);liveUpdate();
+  if(MOBILE){const h=document.getElementById('hint');if(h){h.style.display='block';setTimeout(()=>{h.style.display='none';},4000);}}
+});
 </script>
 </body>
 </html>
