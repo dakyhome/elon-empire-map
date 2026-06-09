@@ -306,9 +306,9 @@ function setBubbleSize(n,d){
   const m=(n.id==='elon'||n.id==='spacex'||n.id==='tesla')?1.4:1.15;
   n.lblEl.style.fontSize=(fs*m).toFixed(1)+'px';
 }
-// size children a touch by relative value, so bigger value still reads bigger
+// size children a touch by relative value (0.80..1.00 of the row size), always under the parent
 function sizeMod(k,sibs){const vs=sibs.map(s=>s._bs);const lo=Math.min(...vs),hi=Math.max(...vs);
-  if(hi-lo<1)return 1;return 0.82+0.36*((k._bs-lo)/(hi-lo));}
+  if(hi-lo<1)return 1;return 0.80+0.20*((k._bs-lo)/(hi-lo));}
 
 function layout(){
   MOBILE=isMobile();
@@ -341,11 +341,11 @@ function layoutMobile(){
   f.hidden=false;kids.forEach(k=>k.hidden=false);if(par)par.hidden=false;
   const cx=W/2;
   if(par){setBubbleSize(par,Math.round(clamp(W*0.14,48,66)));par.bx=cx;par.by=H*0.085;}
-  const Df=Math.round(clamp(W*0.30,96,150));setBubbleSize(f,Df);f.bx=cx;f.by=par?H*0.21:H*0.15;
+  const Df=Math.round(clamp(W*0.30,100,150));setBubbleSize(f,Df);f.bx=cx;f.by=par?H*0.21:H*0.15;
   const areaTop=f.by+Df/2+H*0.045,areaBot=H*0.93,n=kids.length;
-  const perRow=n<=3?1:2,numRows=Math.ceil(n/perRow),rowH=(areaBot-areaTop)/Math.max(1,numRows);
-  const gap=W*0.06,maxW=(perRow===1?W*0.62:(W-3*gap)/2);
-  const Dc=clamp(Math.min(maxW,rowH*0.82),60,140);
+  const perRow=n===1?1:2,numRows=Math.ceil(n/perRow),rowH=(areaBot-areaTop)/Math.max(1,numRows);
+  const gap=W*0.06,maxWcol=(W-(perRow+1)*gap)/perRow,childMax=Df*0.80;
+  const Dc=clamp(Math.min(maxWcol,rowH*0.80,childMax),54,childMax);
   kids.forEach((k,i)=>{
     const r=Math.floor(i/perRow),c=i%perRow,inRow=Math.min(perRow,n-r*perRow);
     const rowY=areaTop+rowH*(r+0.5);
