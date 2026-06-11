@@ -107,7 +107,27 @@
     transform:translateX(102%);transition:transform .28s cubic-bezier(.4,0,.2,1);
     display:flex;flex-direction:column;box-shadow:-22px 0 64px #000a}
   #panel.open{transform:none}
-  #panel .ph{padding:20px 22px 14px;border-bottom:1px solid var(--stroke);position:relative}
+  #panel .ph{padding:20px 22px 14px;border-bottom:1px solid var(--stroke);position:relative;
+    overflow:hidden;background-position:50% 35%;background-size:cover;background-repeat:no-repeat}
+  /* When a per-bubble photo is present, it fills the frozen header. Text rides
+     on a bottom-weighted scrim, so it costs ~0 of the facts space below. */
+  #panel .ph.has-img{padding-top:52px;min-height:120px;border-bottom-color:#ffffff24}
+  /* Two stacked layers: a strong bottom-up gradient that keeps ALL the header
+     text on dark pixels, plus a flat ~38% tint over the whole photo so even a
+     bright, busy daylight shot stays readable. No need to source dark photos. */
+  #panel .ph::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:0;
+    transition:opacity .25s ease;
+    background:linear-gradient(to top,#0a1320 0%,#0a1320f0 46%,#0a1320b3 70%,#0a132061 100%),
+               linear-gradient(to top right,#0a1320d9 0%,#0a132073 32%,#0a132000 60%),
+               linear-gradient(#0a13202b,#0a13202b)}
+  #panel .ph.has-img::after{opacity:1}
+  /* Per-bubble extra darken (set via --ph-dim in JS), sits under the scrim. */
+  #panel .ph::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:#05080e;opacity:var(--ph-dim,0);transition:opacity .25s ease}
+  #panel .ph.has-img h2{text-shadow:0 1px 9px #000b,0 1px 2px #000c}
+  /* Description stays visually secondary to the title: same modest brightness,
+     but a tight dark halo gives it the contrast to read over busy photos. */
+  #panel .ph.has-img .pdesc{color:#cdd9ea;text-shadow:0 1px 1px #000,0 0 4px #000e,0 0 9px #000d,0 1px 15px #000b}
   #panel .pill{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.08em;padding:3px 9px;border-radius:20px;margin-bottom:10px}
   .pill.spacex{background:#0c2d4d;color:#7cc0ff;border:1px solid #2f9bff66}
   .pill.tesla{background:#3a0d10;color:#ff9a9c;border:1px solid #e8212766}
@@ -690,7 +710,37 @@ function hideTip(){tip.style.opacity='0';tipSide={id:null,i:-1};}
 
 // ---------- panel ----------
 const panel=document.getElementById('panel');
+// Per-bubble header photo: tries images/<id>.<ext> across formats and, if none
+// load, leaves the header on its solid colour. Add files any time; missing ones
+// just fall back. HDR_POS lets you nudge the crop of any single image.
+const HDR_EXTS=['jpg','jpeg','png','webp','avif'];
+// Per-bubble crop nudge (background-position). Default crop is 50% 35%.
+// Higher Y % = photo shifts up (shows lower part); lower Y % = photo shifts down.
+const HDR_POS={energy:'50% 55%',starlink:'50% 25%',fsd:'50% 25%',boring:'50% 10%'};
+// Per-bubble extra darken: 0 = none, 0.5 = roughly -50% brightness.
+const HDR_DIM={neuralink:0.5,terafab:0.5,othervehicles:0.5};
+let hdrReq=0;
+function setHeaderImage(n){
+  const ph=panel.querySelector('.ph');
+  const myReq=++hdrReq;                 // guards against fast bubble switching
+  ph.classList.remove('has-img');
+  ph.style.backgroundImage='';
+  ph.style.backgroundPosition=HDR_POS[n.id]||'';
+  ph.style.setProperty('--ph-dim',0);
+  let i=0;
+  (function tryNext(){
+    if(myReq!==hdrReq||i>=HDR_EXTS.length)return;   // superseded or none found
+    const url='images/'+n.id+'.'+HDR_EXTS[i++];
+    const im=new Image();
+    im.onload=()=>{if(myReq!==hdrReq)return;
+      ph.style.backgroundImage='url("'+url+'")';ph.classList.add('has-img');
+      ph.style.setProperty('--ph-dim',HDR_DIM[n.id]||0);};
+    im.onerror=tryNext;
+    im.src=url;
+  })();
+}
 function openPanel(n){
+  setHeaderImage(n);
   const pill=document.getElementById('pPill');let cls,txt;
   if(n.type==='hub'){cls='hub';txt='THE OWNER';}
   else if(n.type==='jv'){cls='jv';txt='JOINT VENTURE';}
