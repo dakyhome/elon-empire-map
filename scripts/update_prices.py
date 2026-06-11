@@ -124,6 +124,25 @@ def fetch_close(symbol):
     return from_alpha(symbol) or from_stooq(symbol)
 
 
+def fetch_today_close(symbol, today):
+    """Like fetch_close, but only accept a bar dated TODAY (New York).
+
+    Because this Action now fires ~15 min after the bell, a data vendor may
+    still be serving yesterday's official close. We must NOT write that stale
+    bar over a fresh one -- a later retry (the :45 run) or the next day will
+    pick up today's real close. Returns (close, 'YYYY-MM-DD') or None.
+    """
+    res = fetch_close(symbol)
+    if not res:
+        return None
+    close, day = res
+    if day == today.isoformat():
+        return res
+    print(f"  {symbol}: latest bar is {day}, not today ({today}); "
+          f"vendor hasn't posted the close yet -- skipping", file=sys.stderr)
+    return None
+
+
 def fmt_networth(value_b):
     """814.0 -> '$814B'; 1284.0 -> '$1.28T'."""
     if value_b >= 1000:
@@ -146,29 +165,42 @@ def main():
     now_ny = datetime.now(NY) if NY else datetime.utcnow()
     checked = now_ny.date()
 
+    # --- Post-close guard ----------------------------------------------------
+    # GitHub cron is UTC only, so the workflow fires in both the EDT and EST
+    # windows (see update-prices.yml). Only ONE of those is actually after the
+    # 4pm New York bell on any given day; the other is mid-afternoon. Bail out
+    # of the early one so we never overwrite prices.json before the close.
+    # workflow_dispatch (manual run) sets no schedule, so allow a forced run.
+    forced = os.environ.get("FORCE_RUN", "").strip() == "1"
+    market_closed = now_ny.weekday() < 5 and now_ny.hour >= 16
+    if not market_closed and not forced:
+        print(f"Skipping: New York time is {now_ny:%Y-%m-%d %H:%M} "
+              f"(market not closed yet). No write.")
+        return
+
     close_date = prev.get("close_date")  # real trading date of the shown close
 
-    # --- TSLA ---
-    res = fetch_close("TSLA")
+    # --- TSLA --- (only a bar dated TODAY is accepted; see fetch_today_close)
+    res = fetch_today_close("TSLA", checked)
     if res:
         tsla, close_date = res
         print(f"TSLA close: {tsla} ({close_date})")
     else:
         tsla = prev_tickers.get("TSLA")  # keep last good close and its date
-        print("TSLA: fetch failed, kept previous", file=sys.stderr)
+        print("TSLA: no fresh close, kept previous", file=sys.stderr)
 
     # --- SPCX (null until it lists) ---
     if checked < SPCX_LIST_DATE:
         spcx = None
         print(f"SPCX: not listed until {SPCX_LIST_DATE}, null")
     else:
-        res = fetch_close("SPCX")
+        res = fetch_today_close("SPCX", checked)
         if res:
             spcx, close_date = res
             print(f"SPCX close: {spcx} ({close_date})")
         else:
             spcx = prev_tickers.get("SPCX")  # could be None on day one
-            print("SPCX: fetch failed, kept previous", file=sys.stderr)
+            print("SPCX: no fresh close, kept previous", file=sys.stderr)
 
     # --- Net worth ---
     if tsla is not None:
