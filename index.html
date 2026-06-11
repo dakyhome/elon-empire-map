@@ -191,7 +191,19 @@
     .bubble::after,.halo{animation:none}
     .stat-i,.facts li{animation:none}
   }
-  @media (max-width:640px){ .stat{display:none} #legend{display:none} .title h1{font-size:16px} }
+  @media (max-width:640px){
+    .stat{display:none} #legend{display:none} .title h1{font-size:16px}
+    /* Phones: un-freeze the detail panel so the whole thing scrolls as one.
+       The tall photo header scrolls away instead of eating half the screen,
+       and the stat chips can no longer be clipped/unreachable. Desktop keeps
+       its frozen header (this only applies under 640px). */
+    #panel{display:block;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    #panel .body{overflow:visible}
+    #panel .ph.has-img{padding-top:40px;min-height:0}
+    /* Keep the close button pinned (panel's backdrop-filter is its containing
+       block, so fixed here stays put while the content scrolls under it). */
+    #close{position:fixed}
+  }
 </style>
 </head>
 <body>
