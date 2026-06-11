@@ -5,8 +5,18 @@ name: Update prices
 
 on:
   schedule:
-    # 22:00 UTC on weekdays = ~6pm New York time, safely after the US close.
-    - cron: "0 22 * * 1-5"
+    # Goal: grab the official close ~15-45 min after the NYSE bell (4:00pm ET).
+    # GitHub cron is UTC only and New York shifts with daylight saving, so we
+    # fire in BOTH the EDT and EST windows and let the script's same-day guard
+    # decide which run is actually post-close. The script no-ops on the others.
+    #
+    #   EDT (Mar-Nov, UTC-4): 4pm ET = 20:00 UTC -> runs at 20:15 / 20:45 UTC
+    #   EST (Nov-Mar, UTC-5): 4pm ET = 21:00 UTC -> runs at 21:15 / 21:45 UTC
+    #
+    # Two attempts per regime: :15 catches it fast, :45 is a retry in case the
+    # data vendor hasn't posted the official close yet or GitHub fired late.
+    - cron: "15,45 20 * * 1-5"   # 4:15 & 4:45pm ET during EDT
+    - cron: "15,45 21 * * 1-5"   # 4:15 & 4:45pm ET during EST
   workflow_dispatch: {}   # lets you run it by hand from the Actions tab
 
 permissions:
@@ -31,6 +41,9 @@ jobs:
       - name: Fetch prices and rewrite prices.json
         env:
           ALPHAVANTAGE_KEY: ${{ secrets.ALPHAVANTAGE_KEY }}
+          # A manual run from the Actions tab forces the fetch regardless of
+          # the time-of-day guard, so you can test it whenever you want.
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: python scripts/update_prices.py
 
       - name: Commit if changed
