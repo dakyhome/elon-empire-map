@@ -59,8 +59,12 @@ PRICES_PATH = os.path.join(REPO, "prices.json")
 # economic stake, so they are not raw share counts. All *_B are billions of $.
 # These constants rarely change.
 # ----------------------------------------------------------------------------
-ELON_TSLA_SH = 0.82        # $/$: 433 * 0.82 ~= $355B Tesla stake (shares + options)
-ELON_SPCX_SH = 6.42        # $/$: 135 * 6.42 ~= $866.5B SpaceX stake at IPO price
+# Share counts in billions. Net worth = live price * count, so the figure
+# tracks both stocks daily and scales correctly at any price.
+ELON_TSLA_SH = 0.82        # Tesla shares + vested options (beneficial), billions
+ELON_SPCX_SH = 5.22        # SpaceX Class B shares, billions: ~91.6% of the
+                           # 5,695,668,265 Class B shares per the S-1/A (primary
+                           # source). ~1.3B of these are milestone-restricted.
 SPACEX_PREIPO_B = 420.0    # fixed SpaceX contribution before it lists
 PRIVATE_REST_B = 59.0      # Boring, Neuralink and the rest
 
@@ -120,27 +124,16 @@ def from_stooq(symbol):
 
 
 def fetch_close(symbol):
-    """Alpha Vantage first, then Stooq. (close, date) or None if both fail."""
-    return from_alpha(symbol) or from_stooq(symbol)
+    """Alpha Vantage first, then Stooq. Returns the LATEST available daily
+    close as (close, 'YYYY-MM-DD'), or None if both sources fail.
 
-
-def fetch_today_close(symbol, today):
-    """Like fetch_close, but only accept a bar dated TODAY (New York).
-
-    Because this Action now fires ~15 min after the bell, a data vendor may
-    still be serving yesterday's official close. We must NOT write that stale
-    bar over a fresh one -- a later retry (the :45 run) or the next day will
-    pick up today's real close. Returns (close, 'YYYY-MM-DD') or None.
+    We deliberately accept whatever the most recent completed daily bar is.
+    Daily endpoints only ever return finished bars, so the worst case is we
+    carry yesterday's official close for a few more hours until today's posts.
+    That keeps the page on the freshest real close at all times instead of
+    freezing whenever a vendor is briefly slow to publish.
     """
-    res = fetch_close(symbol)
-    if not res:
-        return None
-    close, day = res
-    if day == today.isoformat():
-        return res
-    print(f"  {symbol}: latest bar is {day}, not today ({today}); "
-          f"vendor hasn't posted the close yet -- skipping", file=sys.stderr)
-    return None
+    return from_alpha(symbol) or from_stooq(symbol)
 
 
 def fmt_networth(value_b):
@@ -165,42 +158,35 @@ def main():
     now_ny = datetime.now(NY) if NY else datetime.utcnow()
     checked = now_ny.date()
 
-    # --- Post-close guard ----------------------------------------------------
-    # GitHub cron is UTC only, so the workflow fires in both the EDT and EST
-    # windows (see update-prices.yml). Only ONE of those is actually after the
-    # 4pm New York bell on any given day; the other is mid-afternoon. Bail out
-    # of the early one so we never overwrite prices.json before the close.
-    # workflow_dispatch (manual run) sets no schedule, so allow a forced run.
-    forced = os.environ.get("FORCE_RUN", "").strip() == "1"
-    market_closed = now_ny.weekday() < 5 and now_ny.hour >= 16
-    if not market_closed and not forced:
-        print(f"Skipping: New York time is {now_ny:%Y-%m-%d %H:%M} "
-              f"(market not closed yet). No write.")
-        return
+    # No post-close guard: every run takes the latest available daily close and
+    # writes it. Daily endpoints only return completed bars, so running early
+    # just carries the prior official close until today's posts -- it never
+    # writes a partial/intraday number. This makes the job self-healing instead
+    # of freezing when a vendor is slow to publish the close.
 
     close_date = prev.get("close_date")  # real trading date of the shown close
 
-    # --- TSLA --- (only a bar dated TODAY is accepted; see fetch_today_close)
-    res = fetch_today_close("TSLA", checked)
+    # --- TSLA --- (latest available close)
+    res = fetch_close("TSLA")
     if res:
         tsla, close_date = res
         print(f"TSLA close: {tsla} ({close_date})")
     else:
         tsla = prev_tickers.get("TSLA")  # keep last good close and its date
-        print("TSLA: no fresh close, kept previous", file=sys.stderr)
+        print("TSLA: no close from any source, kept previous", file=sys.stderr)
 
-    # --- SPCX (null until it lists) ---
+    # --- SPCX (null until it lists, then latest available close) ---
     if checked < SPCX_LIST_DATE:
         spcx = None
         print(f"SPCX: not listed until {SPCX_LIST_DATE}, null")
     else:
-        res = fetch_today_close("SPCX", checked)
+        res = fetch_close("SPCX")
         if res:
             spcx, close_date = res
             print(f"SPCX close: {spcx} ({close_date})")
         else:
-            spcx = prev_tickers.get("SPCX")  # could be None on day one
-            print("SPCX: no fresh close, kept previous", file=sys.stderr)
+            spcx = prev_tickers.get("SPCX")  # could be None before first close
+            print("SPCX: no close from any source, kept previous", file=sys.stderr)
 
     # --- Net worth ---
     if tsla is not None:
