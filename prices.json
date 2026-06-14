@@ -1,9 +1,9 @@
 {
-  "checked": "2026-06-13",
-  "networth": "$812B",
+  "checked": "2026-06-14",
+  "networth": "$1.23T",
   "tickers": {
     "TSLA": 406.43,
-    "SPCX": null
+    "SPCX": 160.95
   },
   "close_date": "2026-06-12"
 }
