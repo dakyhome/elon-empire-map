@@ -61,7 +61,9 @@ PRICES_PATH = os.path.join(REPO, "prices.json")
 # ----------------------------------------------------------------------------
 # Share counts in billions. Net worth = live price * count, so the figure
 # tracks both stocks daily and scales correctly at any price.
-ELON_TSLA_SH = 0.82        # Tesla shares + vested options (beneficial), billions
+ELON_TSLA_SH = 0.70        # Tesla shares (beneficial), billions: 699,580,882 per
+                           # the June 2026 Schedule 13G/A, after he exercised the
+                           # 2018 option package on June 16, 2026 (now real shares).
 ELON_SPCX_SH = 5.22        # SpaceX Class B shares, billions: ~91.6% of the
                            # 5,695,668,265 Class B shares per the S-1/A (primary
                            # source). ~1.3B of these are milestone-restricted.
@@ -70,6 +72,14 @@ PRIVATE_REST_B = 59.0      # Boring, Neuralink and the rest
 
 # SPCX starts trading on this date. Before it, the ticker stays null.
 SPCX_LIST_DATE = date(2026, 6, 12)
+
+# Manual SPCX pin. SPCX listed June 12, 2026, but neither Alpha Vantage nor Stooq
+# carries the new ticker yet, so the live fetch returns nothing. Until a source
+# lists it, pin the latest real close by hand here. When SPCX appears in a source,
+# the live fetch wins automatically; to force the live pull, set both to None.
+# Update SPCX_MANUAL to the newest close and bump SPCX_MANUAL_DATE to its date.
+SPCX_MANUAL = 185.00              # latest real SPCX close, set by hand
+SPCX_MANUAL_DATE = "2026-06-18"   # the trading day of SPCX_MANUAL
 
 ALPHA_KEY = os.environ.get("ALPHAVANTAGE_KEY", "").strip()
 UA = {"User-Agent": "elon-empire-map/1.0 (+github action)"}
@@ -175,17 +185,24 @@ def main():
         tsla = prev_tickers.get("TSLA")  # keep last good close and its date
         print("TSLA: no close from any source, kept previous", file=sys.stderr)
 
-    # --- SPCX (null until it lists, then latest available close) ---
+    # --- SPCX (null until it lists, then live close, else the manual pin) ---
     if checked < SPCX_LIST_DATE:
         spcx = None
         print(f"SPCX: not listed until {SPCX_LIST_DATE}, null")
     else:
         res = fetch_close("SPCX")
         if res:
+            # A source now carries SPCX. Live data wins over the manual pin.
             spcx, close_date = res
-            print(f"SPCX close: {spcx} ({close_date})")
+            print(f"SPCX close (live): {spcx} ({close_date})")
+        elif SPCX_MANUAL is not None:
+            # No source has SPCX yet. Use the hand-set pin and its own date.
+            spcx = SPCX_MANUAL
+            if SPCX_MANUAL_DATE:
+                close_date = SPCX_MANUAL_DATE
+            print(f"SPCX: no live source, using manual pin {spcx} ({SPCX_MANUAL_DATE})")
         else:
-            spcx = prev_tickers.get("SPCX")  # could be None before first close
+            spcx = prev_tickers.get("SPCX")  # no pin set, keep last good
             print("SPCX: no close from any source, kept previous", file=sys.stderr)
 
     # --- Net worth ---
