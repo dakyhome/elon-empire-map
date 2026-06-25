@@ -851,16 +851,19 @@ async function liveUpdate(){
   if(stamp){ASOF=fmtDate(stamp);const a=document.getElementById('lastchecked');if(a)a.textContent=ASOF;}
   const cdate=data.close_date||data.asof;
   if(cdate)CLOSEDATE=fmtDateDMY(cdate);
-  if(data.networth&&BYID['elon']){BYID['elon'].valuation=data.networth;updateHubNet();}
   const T=data.tickers||{};
+  let pubEq=0;
   for(const n of NODES){
     if(n.ticker&&n.status==='public'&&n.shares_b){
       const px=T[n.ticker];
       if(px&&isFinite(px)){const cap=px*(+n.shares_b);
         LIVE['price-'+n.id]='$'+(+px).toFixed(2);LIVE['cap2-'+n.id]=fmtT(cap);
-        const b=document.getElementById('live-'+n.id);if(b)b.style.display='block';}
+        const b=document.getElementById('live-'+n.id);if(b)b.style.display='block';
+        if(n.parent==='elon'&&n.owns_pct)pubEq+=px*(+n.shares_b)*(+n.owns_pct)/100;}
     }
   }
+  if(pubEq>0&&BYID['elon']){const tslaDeduct=(T['TSLA']||0)*((data.pledged_tsla_m||0)+(data.restricted_tsla_m||0))/1000;BYID['elon'].valuation=fmtT(pubEq+(data.private_b||0)-tslaDeduct);updateHubNet();}
+  else if(data.networth&&BYID['elon']){BYID['elon'].valuation=data.networth;updateHubNet();}
 }
 function updateHubNet(){const hub=BYID['elon'];if(!hub)return;const s=document.getElementById('hubNet');if(s)s.textContent=(hub.valuation||'');}
 
