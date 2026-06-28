@@ -2,28 +2,29 @@
 """
 Rewrites prices.json once a day for the Elon Empire Map.
 
-This file is OWNED by the GitHub Action. Do not edit prices.json by hand and
-do not re-upload a local copy over it. The Action is the only writer.
+Fetch order:
+  TSLA: Alpha Vantage (keyed) → Yahoo Finance → Stooq
+  SPCX: Yahoo Finance → manual pin  (Stooq does not carry SPCX)
 
-What it does:
-  1. Fetches TSLA daily close (Alpha Vantage primary, Stooq fallback).
-  2. Fetches SPCX once it lists on June 12, 2026 (same two sources).
-  3. Records the real trading date of that close (for the per-bubble label).
-  4. Computes an approximate net worth headline from a few fixed constants.
-  5. Stamps "checked" with the run date in New York time (US market clock,
-     so it never drifts to the runner's UTC day or anyone's local day).
-  6. Writes prices.json, keeping yesterday's values if a fetch fails.
+Net worth is computed dynamically in index.html from the live tickers plus the
+static fields below. The "networth" string written here is a last-resort fallback
+shown only when both tickers fail to load client-side.
 
 prices.json shape consumed by index.html:
   {
-    "checked":   "2026-06-09",   -> footer "Last checked on ..."
-    "networth":  "$814B",        -> Elon hub headline
-    "tickers":   {"TSLA": 408.95, "SPCX": null},
-    "close_date":"2026-06-08"    -> per-bubble "Closing: 8 Jun 2026"
+    "checked":           "2026-06-26",  -> footer "Last checked on ..."
+    "private_b":         60,            -> Boring + Neuralink + other private ($B)
+    "pledged_tsla_m":    236,           -> TSLA shares pledged as collateral (millions)
+    "restricted_tsla_m": 286,           -> TSLA shares locked from Jun-16 exercise (millions)
+    "networth":          "$950B",       -> fallback only; index.html recalculates from tickers
+    "tickers":           {"TSLA": 379.71, "SPCX": 153.23},
+    "close_date":        "2026-06-26"   -> per-bubble "Closing: 26 Jun 2026"
   }
 
-Net worth is deliberately approximate. The goal is a figure that sits close to
-the reliable public numbers, not an exact valuation. See the constants below.
+Net worth formula (mirrors index.html liveUpdate):
+  pubEq      = (TSLA x tsla_shares_b x 0.199) + (SPCX x spcx_shares_b x 0.42)
+  tslaDeduct = TSLA x (pledged_tsla_m + restricted_tsla_m) / 1000
+  networth   = pubEq + private_b - tslaDeduct
 """
 
 import csv
@@ -32,54 +33,35 @@ import json
 import os
 import sys
 import urllib.request
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 try:
     from zoneinfo import ZoneInfo
     NY = ZoneInfo("America/New_York")
 except Exception:
-    NY = None  # falls back to UTC date if tz data is missing
+    NY = None
 
-# ----------------------------------------------------------------------------
-# Paths
-# ----------------------------------------------------------------------------
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 PRICES_PATH = os.path.join(REPO, "prices.json")
 
-# ----------------------------------------------------------------------------
-# Net worth model (approximate, calibrated to ~$834B at TSLA $433)
-#
-#   networth = TSLA_close * ELON_TSLA_SH
-#            + (SPCX_close * ELON_SPCX_SH   if SPCX is listed
-#               else SPACEX_PREIPO_B)
-#            + PRIVATE_REST_B
-#
-# All *_SH are billions of "share-equivalents". They bake in options and the
-# economic stake, so they are not raw share counts. All *_B are billions of $.
-# These constants rarely change.
-# ----------------------------------------------------------------------------
-# Share counts in billions. Net worth = live price * count, so the figure
-# tracks both stocks daily and scales correctly at any price.
-ELON_TSLA_SH = 0.70        # Tesla shares (beneficial), billions: 699,580,882 per
-                           # the June 2026 Schedule 13G/A, after he exercised the
-                           # 2018 option package on June 16, 2026 (now real shares).
-ELON_SPCX_SH = 5.22        # SpaceX Class B shares, billions: ~91.6% of the
-                           # 5,695,668,265 Class B shares per the S-1/A (primary
-                           # source). ~1.3B of these are milestone-restricted.
-SPACEX_PREIPO_B = 420.0    # fixed SpaceX contribution before it lists
-PRIVATE_REST_B = 59.0      # Boring, Neuralink and the rest
+# ---- Static fields written into prices.json on every run ---------------------
+# Changing these here changes what index.html uses to compute net worth.
+PRIVATE_B         = 60    # Boring ~$6B + Neuralink ~$4.5B + other private assets ($B)
+PLEDGED_TSLA_M    = 236   # Shares pledged as collateral — Tesla 2025 proxy statement (millions)
+RESTRICTED_TSLA_M = 286   # Net shares from Jun 16 2026 options exercise, locked to 2033 (millions)
+
+# Shares outstanding used in the net worth fallback string (mirrors data.csv shares_b)
+TSLA_SHARES_B = 3.21   # total TSLA shares outstanding, billions
+SPCX_SHARES_B = 13.08  # total SPCX shares outstanding, billions
 
 # SPCX starts trading on this date. Before it, the ticker stays null.
 SPCX_LIST_DATE = date(2026, 6, 12)
 
-# Manual SPCX pin. SPCX listed June 12, 2026, but neither Alpha Vantage nor Stooq
-# carries the new ticker yet, so the live fetch returns nothing. Until a source
-# lists it, pin the latest real close by hand here. When SPCX appears in a source,
-# the live fetch wins automatically; to force the live pull, set both to None.
-# Update SPCX_MANUAL to the newest close and bump SPCX_MANUAL_DATE to its date.
-SPCX_MANUAL = 185.00              # latest real SPCX close, set by hand
-SPCX_MANUAL_DATE = "2026-06-18"   # the trading day of SPCX_MANUAL
+# Manual SPCX pin — used only if Yahoo Finance fetch fails.
+# Update to the newest real close when bumping by hand.
+SPCX_MANUAL      = 153.23        # latest real SPCX close
+SPCX_MANUAL_DATE = "2026-06-26"  # trading date of SPCX_MANUAL
 
 ALPHA_KEY = os.environ.get("ALPHAVANTAGE_KEY", "").strip()
 UA = {"User-Agent": "elon-empire-map/1.0 (+github action)"}
@@ -93,7 +75,7 @@ def _get(url):
 
 
 def from_alpha(symbol):
-    """(close, 'YYYY-MM-DD') from Alpha Vantage's latest daily bar. None on failure."""
+    """Alpha Vantage TIME_SERIES_DAILY — requires ALPHAVANTAGE_KEY secret."""
     if not ALPHA_KEY:
         return None
     try:
@@ -104,9 +86,8 @@ def from_alpha(symbol):
         data = json.loads(_get(url))
         series = data.get("Time Series (Daily)")
         if not series:
-            # Covers rate-limit notes, invalid symbol, not-yet-listed, etc.
             return None
-        day = sorted(series.keys())[-1]                # latest trading date
+        day = sorted(series.keys())[-1]
         close = float(series[day]["4. close"])
         return (close, day) if close > 0 else None
     except Exception as e:
@@ -114,8 +95,33 @@ def from_alpha(symbol):
         return None
 
 
+def from_yahoo(symbol):
+    """Yahoo Finance v8 — no key required. Uses last bar in the 5-day window."""
+    try:
+        url = (
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+            f"?interval=1d&range=5d"
+        )
+        data = json.loads(_get(url))
+        result = data.get("chart", {}).get("result", [])
+        if not result:
+            return None
+        r = result[0]
+        timestamps = r.get("timestamp", [])
+        closes = r.get("indicators", {}).get("quote", [{}])[0].get("close", [])
+        # Walk back from the last entry to find the most recent non-null close
+        for ts, cl in reversed(list(zip(timestamps, closes))):
+            if cl is not None:
+                day = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")
+                return (round(float(cl), 2), day)
+        return None
+    except Exception as e:
+        print(f"  yahoo {symbol}: {e}", file=sys.stderr)
+        return None
+
+
 def from_stooq(symbol):
-    """(close, 'YYYY-MM-DD') from Stooq (no key). None on failure."""
+    """Stooq CSV feed — no key required. Does not carry SPCX."""
     try:
         url = f"https://stooq.com/q/l/?s={symbol.lower()}.us&f=sd2t2ohlcv&h&e=csv"
         rows = list(csv.DictReader(io.StringIO(_get(url))))
@@ -123,7 +129,7 @@ def from_stooq(symbol):
             return None
         row = rows[0]
         close = row.get("Close", "")
-        day = row.get("Date", "")                      # already YYYY-MM-DD
+        day = row.get("Date", "")
         if close in ("", "N/D") or not day:
             return None
         close = float(close)
@@ -133,28 +139,32 @@ def from_stooq(symbol):
         return None
 
 
-def fetch_close(symbol):
-    """Alpha Vantage first, then Stooq. Returns the LATEST available daily
-    close as (close, 'YYYY-MM-DD'), or None if both sources fail.
+def fetch_tsla():
+    """Alpha Vantage → Yahoo Finance → Stooq."""
+    return from_alpha("TSLA") or from_yahoo("TSLA") or from_stooq("TSLA")
 
-    We deliberately accept whatever the most recent completed daily bar is.
-    Daily endpoints only ever return finished bars, so the worst case is we
-    carry yesterday's official close for a few more hours until today's posts.
-    That keeps the page on the freshest real close at all times instead of
-    freezing whenever a vendor is briefly slow to publish.
-    """
-    return from_alpha(symbol) or from_stooq(symbol)
+
+def fetch_spcx():
+    """Yahoo Finance → manual pin. Stooq does not carry SPCX."""
+    return from_yahoo("SPCX") or from_alpha("SPCX")
 
 
 def fmt_networth(value_b):
-    """814.0 -> '$814B'; 1284.0 -> '$1.28T'."""
     if value_b >= 1000:
         return f"${value_b / 1000:.2f}T"
     return f"${round(value_b)}B"
 
 
+def calc_networth(tsla, spcx):
+    """Mirror the index.html liveUpdate formula exactly."""
+    tsla_eq   = tsla * TSLA_SHARES_B * 0.199
+    spcx_eq   = spcx * SPCX_SHARES_B * 0.42
+    deduct    = tsla * (PLEDGED_TSLA_M + RESTRICTED_TSLA_M) / 1000
+    return tsla_eq + spcx_eq + PRIVATE_B - deduct
+
+
 def main():
-    # Start from yesterday's file so a failed fetch keeps the last good value.
+    # Start from the previous file so failed fetches keep the last good values.
     prev = {}
     if os.path.exists(PRICES_PATH):
         try:
@@ -164,61 +174,60 @@ def main():
             pass
     prev_tickers = prev.get("tickers", {}) or {}
 
-    # "Checked" date follows the US market clock (New York), not UTC or local.
     now_ny = datetime.now(NY) if NY else datetime.utcnow()
     checked = now_ny.date()
+    close_date = prev.get("close_date")
 
-    # No post-close guard: every run takes the latest available daily close and
-    # writes it. Daily endpoints only return completed bars, so running early
-    # just carries the prior official close until today's posts -- it never
-    # writes a partial/intraday number. This makes the job self-healing instead
-    # of freezing when a vendor is slow to publish the close.
-
-    close_date = prev.get("close_date")  # real trading date of the shown close
-
-    # --- TSLA --- (latest available close)
-    res = fetch_close("TSLA")
+    # --- TSLA ---
+    res = fetch_tsla()
     if res:
         tsla, close_date = res
         print(f"TSLA close: {tsla} ({close_date})")
     else:
-        tsla = prev_tickers.get("TSLA")  # keep last good close and its date
+        tsla = prev_tickers.get("TSLA")
         print("TSLA: no close from any source, kept previous", file=sys.stderr)
 
-    # --- SPCX (null until it lists, then live close, else the manual pin) ---
+    # --- SPCX ---
     if checked < SPCX_LIST_DATE:
         spcx = None
         print(f"SPCX: not listed until {SPCX_LIST_DATE}, null")
     else:
-        res = fetch_close("SPCX")
+        res = fetch_spcx()
         if res:
-            # A source now carries SPCX. Live data wins over the manual pin.
-            spcx, close_date = res
-            print(f"SPCX close (live): {spcx} ({close_date})")
+            spcx, spcx_date = res
+            # Only advance close_date, never backtrack it
+            if not close_date or spcx_date >= close_date:
+                close_date = spcx_date
+            print(f"SPCX close (live): {spcx} ({spcx_date})")
         elif SPCX_MANUAL is not None:
-            # No source has SPCX yet. Use the hand-set pin and its own date.
             spcx = SPCX_MANUAL
-            if SPCX_MANUAL_DATE:
-                close_date = SPCX_MANUAL_DATE
-            print(f"SPCX: no live source, using manual pin {spcx} ({SPCX_MANUAL_DATE})")
+            # Manual pin NEVER updates close_date — TSLA's fetched date is always fresher
+            print(f"SPCX: Yahoo failed, using manual pin {spcx} (close_date unchanged: {close_date})")
         else:
-            spcx = prev_tickers.get("SPCX")  # no pin set, keep last good
+            spcx = prev_tickers.get("SPCX")
             print("SPCX: no close from any source, kept previous", file=sys.stderr)
 
-    # --- Net worth ---
-    if tsla is not None:
-        total = tsla * ELON_TSLA_SH + PRIVATE_REST_B
-        total += (spcx * ELON_SPCX_SH) if spcx else SPACEX_PREIPO_B
-        networth = fmt_networth(total)
+    # --- Hard guard: close_date must never go backwards from what was previously committed ---
+    prev_close = prev.get("close_date", "")
+    if prev_close and close_date and close_date < prev_close:
+        print(f"  close_date would backtrack {close_date} < {prev_close}, keeping {prev_close}", file=sys.stderr)
+        close_date = prev_close
+
+    # --- Fallback networth string (index.html computes dynamically; this is backup) ---
+    if tsla is not None and spcx is not None:
+        networth = fmt_networth(calc_networth(tsla, spcx))
     else:
-        networth = prev.get("networth", "")  # nothing live, keep prior
+        networth = prev.get("networth", "")
     print(f"Net worth: {networth}")
 
     out = {
-        "checked": checked.isoformat(),
-        "networth": networth,
-        "tickers": {"TSLA": tsla, "SPCX": spcx},
-        "close_date": close_date,
+        "checked":           checked.isoformat(),
+        "private_b":         PRIVATE_B,
+        "pledged_tsla_m":    PLEDGED_TSLA_M,
+        "restricted_tsla_m": RESTRICTED_TSLA_M,
+        "networth":          networth,
+        "tickers":           {"TSLA": tsla, "SPCX": spcx},
+        "close_date":        close_date,
     }
 
     with open(PRICES_PATH, "w") as f:
