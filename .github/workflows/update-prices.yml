@@ -5,14 +5,24 @@ name: Update prices
 
 on:
   schedule:
-    # The script always takes the latest available daily close, so exact timing
-    # is not critical. We fire after the New York close (covering both EDT and
-    # EST), plus a late catch-up once end-of-day data has surely posted.
+    # 4 triggers a day, every day (no weekday filter, so there is never a
+    # skipped day). GitHub's scheduler is best-effort and can run late by
+    # hours, so spacing 4 shots around the close gives several chances for
+    # one of them to land close to the target window instead of relying on
+    # a single cron. All times are UTC, offset from :00 to dodge the
+    # top-of-the-hour congestion GitHub warns about. Based on the 4pm ET
+    # (EDT) close = 20:00 UTC; during EST (winter) these all sit about 1hr
+    # earlier relative to the real close, which is fine since the script
+    # always grabs the latest available daily close regardless of when it runs.
     #
-    #   21:30 UTC = 17:30 ET (EDT) / 16:30 ET (EST), just after the bell
-    #   01:30 UTC = 21:30 ET (EDT) / 20:30 ET (EST) the prior weekday, catch-up
-    - cron: "30 21 * * 1-5"   # shortly after the close
-    - cron: "30 1 * * 2-6"    # evening ET catch-up for the prior trading day
+    #   19:15 UTC = 1hr before close  -> ~03:15 GMT+8 next day
+    #   20:15 UTC = at market close   -> ~04:15 GMT+8 next day
+    #   21:15 UTC = 1hr after close   -> ~05:15 GMT+8 next day
+    #   23:15 UTC = 3hr after close   -> ~07:15 GMT+8 next day
+    - cron: "15 19 * * *"   # 1hr before close
+    - cron: "15 20 * * *"   # at market close
+    - cron: "15 21 * * *"   # 1hr after close
+    - cron: "15 23 * * *"   # 3hr after close
   workflow_dispatch: {}   # lets you run it by hand from the Actions tab
 
 permissions:
