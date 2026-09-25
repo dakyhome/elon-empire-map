@@ -1,12 +1,12 @@
 {
-  "checked": "2026-09-24",
+  "checked": "2026-09-25",
   "private_b": 60,
   "pledged_tsla_m": 236,
   "restricted_tsla_m": 286,
-  "networth": "$919B",
+  "networth": "$920B",
   "tickers": {
-    "TSLA": 377.94,
-    "SPCX": 148.36
+    "TSLA": 372.11,
+    "SPCX": 148.68
   },
-  "close_date": "2026-09-24"
+  "close_date": "2026-09-25"
 }
