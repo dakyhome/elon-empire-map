@@ -3,10 +3,10 @@
   "private_b": 60,
   "pledged_tsla_m": 236,
   "restricted_tsla_m": 286,
-  "networth": "$916B",
+  "networth": "$913B",
   "tickers": {
     "TSLA": 391.62,
-    "SPCX": 147.49
+    "SPCX": 146.9
   },
   "close_date": "2026-10-26"
 }
